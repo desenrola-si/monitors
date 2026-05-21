@@ -1,0 +1,23 @@
+import 'reflect-metadata';
+import { Container } from 'inversify';
+import { TYPES } from './types.js';
+import { Logger } from './logger.js';
+import { Database } from './database.js';
+import { Notifier } from './notifier.js';
+import { registerJobs } from '../jobs/index.js';
+
+/**
+ * Constrói o container Inversify com todos os bindings. Chamado pelo
+ * cli.ts (one-shot) e pelo daemon.ts (sempre on) — mesmo container.
+ */
+export function buildContainer(): Container {
+  const container = new Container({ defaultScope: 'Singleton' });
+
+  container.bind<Logger>(TYPES.Logger).to(Logger);
+  container.bind<Database>(TYPES.Database).to(Database);
+  container.bind<Notifier>(TYPES.Notifier).to(Notifier);
+
+  registerJobs(container);
+
+  return container;
+}
