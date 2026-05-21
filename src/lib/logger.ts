@@ -6,13 +6,26 @@ export class Logger {
   private base: PinoLogger;
 
   constructor() {
-    const isDev = process.env.NODE_ENV !== 'production';
+    // Pretty quando dev OU quando LOG_PRETTY=true (útil pra ver bonito no
+    // dashboard Railway que renderiza ANSI colors). JSON puro só quando
+    // LOG_PRETTY=false explícito (pra log drains que parseiam JSON).
+    const usePretty =
+      process.env.LOG_PRETTY === 'true' ||
+      (process.env.LOG_PRETTY !== 'false' && process.env.NODE_ENV !== 'production');
+
     this.base = pino({
       level: process.env.LOG_LEVEL ?? 'info',
-      ...(isDev && {
+      ...(usePretty && {
         transport: {
           target: 'pino-pretty',
-          options: { colorize: true, translateTime: 'HH:MM:ss.l' },
+          options: {
+            colorize: true,
+            translateTime: 'SYS:HH:MM:ss.l',
+            ignore: 'pid,hostname',
+            singleLine: false,
+            levelFirst: true,
+            messageFormat: '{job}{if job} • {end}{msg}',
+          },
         },
       }),
     });
