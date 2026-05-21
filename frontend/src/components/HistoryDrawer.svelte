@@ -67,6 +67,9 @@
             <div class="run-status">
               <span class="dot" data-status={run.status}></span>
               <span class="run-status-label">{statusLabel(run.status)}</span>
+              {#if run.triggerSource === 'manual'}
+                <span class="trigger-badge">manual</span>
+              {/if}
             </div>
             <div class="run-meta">
               <span class="mono">{formatDateTime(run.startedAt)} BRT</span>
@@ -203,6 +206,17 @@
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--text-secondary);
+  }
+  .trigger-badge {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+    background: var(--accent-bg);
+    border: 1px solid var(--border-accent);
+    border-radius: 3px;
+    padding: 1px 6px;
+    margin-left: auto;
   }
   .run-meta {
     font-size: 12px;

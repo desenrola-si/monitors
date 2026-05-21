@@ -4,6 +4,8 @@ import { TYPES } from './types.js';
 import { Logger } from './logger.js';
 import { Database } from './database.js';
 import { Notifier } from './notifier.js';
+import { AlertsRepository } from './repositories/alerts-repository.js';
+import { JobRunsRepository } from './repositories/job-runs-repository.js';
 import { registerJobs } from '../jobs/index.js';
 
 /**
@@ -16,6 +18,8 @@ export function buildContainer(): Container {
   container.bind<Logger>(TYPES.Logger).to(Logger);
   container.bind<Database>(TYPES.Database).to(Database);
   container.bind<Notifier>(TYPES.Notifier).to(Notifier);
+  container.bind<AlertsRepository>(TYPES.AlertsRepository).to(AlertsRepository);
+  container.bind<JobRunsRepository>(TYPES.JobRunsRepository).to(JobRunsRepository);
 
   registerJobs(container);
 

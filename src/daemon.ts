@@ -14,6 +14,7 @@ import { Database } from './lib/database.js';
 import { Job } from './lib/job.js';
 import { buildHttpServer } from './http/server.js';
 import { JobRunSummary } from './http/routes/jobs.js';
+import { JobRunsRepository } from './lib/repositories/job-runs-repository.js';
 
 // eslint-disable-next-line no-console
 console.log(`[boot] imports loaded, building container`);
@@ -35,14 +36,20 @@ console.log(`[boot] imports loaded, building container`);
 const container = buildContainer();
 const logger = container.get<Logger>(TYPES.Logger);
 const db = container.get<Database>(TYPES.Database);
+const jobRunsRepo = container.get<JobRunsRepository>(TYPES.JobRunsRepository);
 const jobs = getAllJobs(container);
 
 const running = new Set<string>();
 const lastRunByJob = new Map<string, JobRunSummary>();
 
 /**
- * Executa um job com tracking de overlap + lastRun. Compartilhado entre o
- * scheduler do cron e o `triggerNow` exposto via HTTP.
+ * Executa um job com tracking em 3 camadas:
+ *   - `running` Set: dedup de execução concorrente
+ *   - `lastRunByJob` Map: cache in-memory pro GET /api/jobs responder rápido
+ *   - `job_runs` table: histórico persistente pro dashboard (pode falhar sem
+ *     derrubar o job — só loga warning)
+ *
+ * Compartilhado entre o scheduler do cron e o `triggerNow` exposto via HTTP.
  */
 async function runJob(job: Job, source: 'cron' | 'manual'): Promise<void> {
   if (running.has(job.name)) {
@@ -53,7 +60,8 @@ async function runJob(job: Job, source: 'cron' | 'manual'): Promise<void> {
     return;
   }
   running.add(job.name);
-  const startedAt = new Date().toISOString();
+  const startedAtDate = new Date();
+  const startedAt = startedAtDate.toISOString();
   const t0 = Date.now();
   lastRunByJob.set(job.name, {
     startedAt,
@@ -62,28 +70,70 @@ async function runJob(job: Job, source: 'cron' | 'manual'): Promise<void> {
     durationMs: null,
     errorMessage: null,
   });
+
+  let runId: string | null = null;
+  try {
+    runId = await jobRunsRepo.insertRunning(job.name, source, startedAtDate);
+  } catch (err) {
+    logger.warn(
+      { job: job.name, err: (err as Error).message },
+      'Falha ao persistir job_runs (running) — daemon continua',
+    );
+  }
+
   logger.info({ job: job.name, source }, 'Job iniciando');
   try {
     await job.run();
     const durationMs = Date.now() - t0;
+    const finishedAt = new Date();
     lastRunByJob.set(job.name, {
       startedAt,
-      finishedAt: new Date().toISOString(),
+      finishedAt: finishedAt.toISOString(),
       status: 'success',
       durationMs,
       errorMessage: null,
     });
+    if (runId) {
+      await jobRunsRepo
+        .markFinished(runId, {
+          statusCode: 'success',
+          finishedAt,
+          durationMs,
+        })
+        .catch((err: Error) =>
+          logger.warn(
+            { job: job.name, err: err.message },
+            'Falha ao persistir job_runs (success)',
+          ),
+        );
+    }
     logger.info({ job: job.name, ms: durationMs }, 'Job concluído');
   } catch (err) {
     const durationMs = Date.now() - t0;
+    const finishedAt = new Date();
     const errorMessage = err instanceof Error ? err.message : String(err);
     lastRunByJob.set(job.name, {
       startedAt,
-      finishedAt: new Date().toISOString(),
+      finishedAt: finishedAt.toISOString(),
       status: 'failed',
       durationMs,
       errorMessage,
     });
+    if (runId) {
+      await jobRunsRepo
+        .markFinished(runId, {
+          statusCode: 'failed',
+          finishedAt,
+          durationMs,
+          errorMessage,
+        })
+        .catch((persistErr: Error) =>
+          logger.warn(
+            { job: job.name, err: persistErr.message },
+            'Falha ao persistir job_runs (failed)',
+          ),
+        );
+    }
     logger.error(
       { job: job.name, err, ms: durationMs },
       'Job falhou (daemon continua)',

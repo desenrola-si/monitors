@@ -14,6 +14,7 @@
     "build": "npm run build:server && npm run build:frontend",
     "build:server": "tsc",
     "build:frontend": "vite build",
+    "migrate": "tsx src/migrate.ts",
     "start": "node dist/daemon.js",
     "start:cli": "node dist/cli.js",
     "start:daemon": "node dist/daemon.js"

@@ -47,6 +47,7 @@ export interface JobRunSummary {
   status: 'running' | 'success' | 'failed';
   durationMs: number | null;
   errorMessage: string | null;
+  triggerSource?: 'cron' | 'manual';
 }
 
 export interface JobInfo {

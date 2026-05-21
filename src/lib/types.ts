@@ -6,6 +6,8 @@ export const TYPES = {
   Logger: Symbol.for('Logger'),
   Database: Symbol.for('Database'),
   Notifier: Symbol.for('Notifier'),
+  AlertsRepository: Symbol.for('AlertsRepository'),
+  JobRunsRepository: Symbol.for('JobRunsRepository'),
 } as const;
 
-export type DbName = 'desenrola' | 'workflow_processor';
+export type DbName = 'desenrola' | 'workflow_processor' | 'monitors';

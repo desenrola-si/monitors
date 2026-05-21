@@ -2,18 +2,19 @@ import { FastifyPluginAsync } from 'fastify';
 import { Container } from 'inversify';
 import { getAllJobs, getJobByName } from '../../jobs/index.js';
 import { Job } from '../../lib/job.js';
+import { TYPES } from '../../lib/types.js';
+import { JobRunsRepository } from '../../lib/repositories/job-runs-repository.js';
 
 interface JobsRoutesOpts {
   container: Container;
   /**
-   * Map de last-run em memória até a persistência DB chegar. Daemon escreve
-   * aqui em todo catch/finally. Quando job_runs estiver pronto, esse map vira
-   * só cache pra responder rápido — DB é fonte de verdade pra histórico.
+   * Cache in-memory de last-run pra resposta rápida do GET /api/jobs sem hit
+   * no DB. Daemon atualiza em todo finally. Histórico completo vem do DB
+   * (job_runs) via JobRunsRepository.
    */
   lastRunByJob: Map<string, JobRunSummary>;
   /**
-   * Função que dispara um job imediatamente (fora do schedule). Disponibilizada
-   * pelo daemon — encapsula a mesma lógica de overlap-check.
+   * Função que dispara um job imediatamente (fora do schedule).
    */
   triggerNow: (jobName: string) => Promise<void>;
 }
@@ -29,6 +30,10 @@ export interface JobRunSummary {
 const jobsRoutes: (opts: JobsRoutesOpts) => FastifyPluginAsync =
   ({ container, lastRunByJob, triggerNow }) =>
   async (fastify) => {
+    const jobRunsRepo = container.get<JobRunsRepository>(
+      TYPES.JobRunsRepository,
+    );
+
     fastify.addHook('preHandler', fastify.requireAuth);
 
     fastify.get('/api/jobs', async () => {
@@ -51,7 +56,6 @@ const jobsRoutes: (opts: JobsRoutesOpts) => FastifyPluginAsync =
         if (!job) {
           return reply.code(404).send({ error: 'job_not_found' });
         }
-        // Não esperamos — dispara assíncrono. Cliente vai ver no GET /api/jobs.
         void triggerNow(req.params.name).catch((err) => {
           fastify.log.error({ err, job: req.params.name }, 'trigger falhou');
         });
@@ -59,18 +63,41 @@ const jobsRoutes: (opts: JobsRoutesOpts) => FastifyPluginAsync =
       },
     );
 
-    // Placeholder até job_runs estar no DB. Por enquanto retorna só o último.
-    fastify.get<{ Params: { name: string } }>(
-      '/api/jobs/:name/runs',
-      async (req, reply) => {
-        const job = getJobByName(container, req.params.name);
-        if (!job) {
-          return reply.code(404).send({ error: 'job_not_found' });
-        }
+    fastify.get<{
+      Params: { name: string };
+      Querystring: { limit?: string; offset?: string };
+    }>('/api/jobs/:name/runs', async (req, reply) => {
+      const job = getJobByName(container, req.params.name);
+      if (!job) {
+        return reply.code(404).send({ error: 'job_not_found' });
+      }
+      const limit = Math.min(
+        parseInt(req.query.limit ?? '50', 10) || 50,
+        200,
+      );
+      const offset = parseInt(req.query.offset ?? '0', 10) || 0;
+      try {
+        const rows = await jobRunsRepo.listByJob(req.params.name, limit, offset);
+        return reply.send({
+          runs: rows.map((r) => ({
+            startedAt: r.startedAt,
+            finishedAt: r.finishedAt,
+            status: r.statusCode,
+            durationMs: r.durationMs,
+            errorMessage: r.errorMessage,
+            triggerSource: r.triggerSource,
+          })),
+        });
+      } catch (err) {
+        // Fallback pro cache in-memory se DB não estiver acessível
+        fastify.log.warn(
+          { err, job: req.params.name },
+          'job_runs DB unavailable, falling back to in-memory',
+        );
         const last = lastRunByJob.get(req.params.name);
         return reply.send({ runs: last ? [last] : [] });
-      },
-    );
+      }
+    });
   };
 
 export default jobsRoutes;

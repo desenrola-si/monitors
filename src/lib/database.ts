@@ -18,7 +18,11 @@ export class Database {
     if (existing) return existing;
 
     const envKey =
-      name === 'desenrola' ? 'DESENROLA_DB_URL' : 'WORKFLOW_PROCESSOR_DB_URL';
+      name === 'desenrola'
+        ? 'DESENROLA_DB_URL'
+        : name === 'workflow_processor'
+          ? 'WORKFLOW_PROCESSOR_DB_URL'
+          : 'MONITORS_DB_URL';
     const url = process.env[envKey];
     if (!url) {
       throw new Error(`Variável de ambiente ${envKey} não configurada`);
