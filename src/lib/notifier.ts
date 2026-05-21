@@ -1,5 +1,5 @@
 import { injectable, inject } from 'inversify';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import { TYPES } from './types.js';
 import { Logger } from './logger.js';
 
@@ -19,10 +19,33 @@ export class Notifier {
       return;
     }
     try {
-      await axios.post(url, { text }, { timeout: 10_000 });
+      await axios.post(
+        url,
+        { text },
+        {
+          timeout: 10_000,
+          headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+        },
+      );
     } catch (err) {
+      // Axios anexa response em err.response quando o servidor respondeu
+      // com 4xx/5xx — extraímos status + body pra entender o motivo (ex:
+      // Google Chat retorna { error: { code, message, status, details } }).
+      const axiosErr = err as AxiosError;
+      const status = axiosErr.response?.status;
+      const body =
+        typeof axiosErr.response?.data === 'object'
+          ? JSON.stringify(axiosErr.response.data).slice(0, 600)
+          : String(axiosErr.response?.data ?? '').slice(0, 600);
+
       this.logger.error(
-        { err: (err as Error).message },
+        {
+          err: axiosErr.message,
+          ...(status !== undefined && { status }),
+          ...(body && { body }),
+          // primeiros 100 chars da URL pra ver se o token chegou bem
+          urlPrefix: url.slice(0, 100),
+        },
         'Falha ao notificar Google Chat',
       );
     }
