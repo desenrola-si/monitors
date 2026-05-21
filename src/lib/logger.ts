@@ -21,10 +21,12 @@ export class Logger {
           options: {
             colorize: true,
             translateTime: 'SYS:HH:MM:ss.l',
-            ignore: 'pid,hostname',
+            ignore: 'pid,hostname,job',
             singleLine: false,
             levelFirst: true,
-            messageFormat: '{job}{if job} • {end}{msg}',
+            // {if job}…{end} blocos são suporte pino-pretty 11+: renderiza
+            // só quando o campo está presente nos bindings/log
+            messageFormat: '{if job}[{job}] {end}{msg}',
           },
         },
       }),
