@@ -13,10 +13,16 @@ interface JobsRoutesOpts {
    * (job_runs) via JobRunsRepository.
    */
   lastRunByJob: Map<string, JobRunSummary>;
-  /**
-   * Função que dispara um job imediatamente (fora do schedule).
-   */
+  /** Schedule corrente por job (default ou override aplicado). */
+  effectiveSchedules: Map<string, string>;
+  /** Dispara job imediatamente (fora do schedule). */
   triggerNow: (jobName: string) => Promise<void>;
+  /** Persiste override em job_overrides + recarrega task no node-cron. */
+  reloadSchedule: (
+    jobName: string,
+    newSchedule: string,
+    actor: string,
+  ) => Promise<void>;
 }
 
 export interface JobRunSummary {
@@ -28,7 +34,7 @@ export interface JobRunSummary {
 }
 
 const jobsRoutes: (opts: JobsRoutesOpts) => FastifyPluginAsync =
-  ({ container, lastRunByJob, triggerNow }) =>
+  ({ container, lastRunByJob, effectiveSchedules, triggerNow, reloadSchedule }) =>
   async (fastify) => {
     const jobRunsRepo = container.get<JobRunsRepository>(
       TYPES.JobRunsRepository,
@@ -39,14 +45,19 @@ const jobsRoutes: (opts: JobsRoutesOpts) => FastifyPluginAsync =
     fastify.get('/api/jobs', async () => {
       const jobs: Job[] = getAllJobs(container);
       return {
-        jobs: jobs.map((j) => ({
-          name: j.name,
-          displayName: j.displayName ?? null,
-          description: j.description,
-          schedule: j.schedule,
-          timezone: j.timezone,
-          lastRun: lastRunByJob.get(j.name) ?? null,
-        })),
+        jobs: jobs.map((j) => {
+          const effective = effectiveSchedules.get(j.name) ?? j.schedule;
+          return {
+            name: j.name,
+            displayName: j.displayName ?? null,
+            description: j.description,
+            schedule: effective,
+            scheduleDefault: j.schedule,
+            scheduleIsOverridden: effective !== j.schedule,
+            timezone: j.timezone,
+            lastRun: lastRunByJob.get(j.name) ?? null,
+          };
+        }),
       };
     });
 
@@ -63,6 +74,40 @@ const jobsRoutes: (opts: JobsRoutesOpts) => FastifyPluginAsync =
         return reply.send({ ok: true, triggered: req.params.name });
       },
     );
+
+    fastify.put<{
+      Params: { name: string };
+      Body: { schedule: string };
+    }>('/api/jobs/:name/schedule', {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['schedule'],
+          properties: {
+            schedule: { type: 'string', minLength: 5, maxLength: 120 },
+          },
+        },
+      },
+      handler: async (req, reply) => {
+        const job = getJobByName(container, req.params.name);
+        if (!job) {
+          return reply.code(404).send({ error: 'job_not_found' });
+        }
+        const actor = req.session.get('user')?.username ?? 'unknown';
+        try {
+          await reloadSchedule(req.params.name, req.body.schedule.trim(), actor);
+          return reply.send({
+            ok: true,
+            schedule: effectiveSchedules.get(req.params.name),
+          });
+        } catch (err) {
+          return reply.code(400).send({
+            error: 'invalid_schedule',
+            message: err instanceof Error ? err.message : String(err),
+          });
+        }
+      },
+    });
 
     fastify.get<{
       Params: { name: string };

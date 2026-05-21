@@ -89,8 +89,8 @@ export class JobRunsRepository {
         r.job_name,
         s.code AS status_code,
         r.trigger_source,
-        r.started_at::text AS started_at,
-        r.finished_at::text AS finished_at,
+        TO_CHAR(r.started_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS started_at,
+        TO_CHAR(r.finished_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS finished_at,
         r.duration_ms,
         r.error_message
       FROM job_runs r

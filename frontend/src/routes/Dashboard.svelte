@@ -113,6 +113,7 @@
             triggering={triggering.has(job.name)}
             onTrigger={() => trigger(job.name)}
             onViewHistory={() => (drawerJobName = job.name)}
+            onScheduleChanged={() => void load()}
           />
         {/each}
       </div>

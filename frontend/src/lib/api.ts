@@ -33,6 +33,7 @@ async function request<T>(
 export const api = {
   get: <T>(path: string) => request<T>('GET', path),
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),
+  put: <T>(path: string, body?: unknown) => request<T>('PUT', path, body),
 };
 
 // — Endpoints tipados —
@@ -54,6 +55,8 @@ export interface JobInfo {
   name: string;
   displayName: string | null;
   description: string;
+  scheduleDefault: string;
+  scheduleIsOverridden: boolean;
   schedule: string;
   timezone: string;
   lastRun: JobRunSummary | null;
@@ -74,4 +77,8 @@ export const jobsApi = {
   list: () => api.get<JobsList>('/api/jobs'),
   trigger: (name: string) => api.post<{ ok: boolean }>(`/api/jobs/${name}/trigger`),
   runs: (name: string) => api.get<{ runs: JobRunSummary[] }>(`/api/jobs/${name}/runs`),
+  updateSchedule: (name: string, schedule: string) =>
+    api.put<{ ok: boolean; schedule: string }>(`/api/jobs/${name}/schedule`, {
+      schedule,
+    }),
 };

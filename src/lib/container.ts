@@ -6,6 +6,7 @@ import { Database } from './database.js';
 import { Notifier } from './notifier.js';
 import { AlertsRepository } from './repositories/alerts-repository.js';
 import { JobRunsRepository } from './repositories/job-runs-repository.js';
+import { JobOverridesRepository } from './repositories/job-overrides-repository.js';
 import { registerJobs } from '../jobs/index.js';
 
 /**
@@ -20,6 +21,7 @@ export function buildContainer(): Container {
   container.bind<Notifier>(TYPES.Notifier).to(Notifier);
   container.bind<AlertsRepository>(TYPES.AlertsRepository).to(AlertsRepository);
   container.bind<JobRunsRepository>(TYPES.JobRunsRepository).to(JobRunsRepository);
+  container.bind<JobOverridesRepository>(TYPES.JobOverridesRepository).to(JobOverridesRepository);
 
   registerJobs(container);
 

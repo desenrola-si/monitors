@@ -8,6 +8,7 @@ export const TYPES = {
   Notifier: Symbol.for('Notifier'),
   AlertsRepository: Symbol.for('AlertsRepository'),
   JobRunsRepository: Symbol.for('JobRunsRepository'),
+  JobOverridesRepository: Symbol.for('JobOverridesRepository'),
 } as const;
 
 export type DbName = 'desenrola' | 'workflow_processor' | 'monitors';

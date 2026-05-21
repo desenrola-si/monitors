@@ -152,8 +152,8 @@ const SELECT_ALERT_BASE = `
     a.fingerprint,
     a.payload,
     s.code AS status_code,
-    a.notified_at::text AS notified_at,
-    a.resolved_at::text AS resolved_at,
+    TO_CHAR(a.notified_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS notified_at,
+    TO_CHAR(a.resolved_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS resolved_at,
     a.resolution_note,
     a.resolution_evidence
   FROM alerts a

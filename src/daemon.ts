@@ -15,6 +15,8 @@ import { Job } from './lib/job.js';
 import { buildHttpServer } from './http/server.js';
 import { JobRunSummary } from './http/routes/jobs.js';
 import { JobRunsRepository } from './lib/repositories/job-runs-repository.js';
+import { JobOverridesRepository } from './lib/repositories/job-overrides-repository.js';
+import type { ScheduledTask } from 'node-cron';
 
 // eslint-disable-next-line no-console
 console.log(`[boot] imports loaded, building container`);
@@ -37,10 +39,15 @@ const container = buildContainer();
 const logger = container.get<Logger>(TYPES.Logger);
 const db = container.get<Database>(TYPES.Database);
 const jobRunsRepo = container.get<JobRunsRepository>(TYPES.JobRunsRepository);
+const jobOverridesRepo = container.get<JobOverridesRepository>(
+  TYPES.JobOverridesRepository,
+);
 const jobs = getAllJobs(container);
 
 const running = new Set<string>();
 const lastRunByJob = new Map<string, JobRunSummary>();
+const scheduledTasks = new Map<string, ScheduledTask>();
+const effectiveSchedules = new Map<string, string>();
 
 /**
  * Executa um job com tracking em 3 camadas:
@@ -143,28 +150,59 @@ async function runJob(job: Job, source: 'cron' | 'manual'): Promise<void> {
   }
 }
 
-logger.info({ count: jobs.length }, 'Daemon iniciando');
-
-for (const job of jobs) {
-  if (!cron.validate(job.schedule)) {
-    logger.error(
-      { job: job.name, schedule: job.schedule },
-      'Schedule inválido, daemon abortando',
-    );
-    process.exit(1);
+/**
+ * Aplica um schedule pra um job — destrói task anterior se houver e cria um
+ * novo. Usado tanto no boot quanto no reload via API.
+ */
+function applySchedule(job: Job, schedule: string): void {
+  const existing = scheduledTasks.get(job.name);
+  if (existing) {
+    existing.stop();
+    scheduledTasks.delete(job.name);
   }
-
-  cron.schedule(job.schedule, () => void runJob(job, 'cron'), {
+  const task = cron.schedule(schedule, () => void runJob(job, 'cron'), {
     timezone: job.timezone,
   });
-
-  logger.info(
-    { job: job.name, schedule: job.schedule, timezone: job.timezone },
-    'Job registrado',
-  );
+  scheduledTasks.set(job.name, task);
+  effectiveSchedules.set(job.name, schedule);
 }
 
-logger.info('Daemon pronto, aguardando schedules');
+async function bootScheduler(): Promise<void> {
+  let overrides: Awaited<ReturnType<typeof jobOverridesRepo.listAll>> = [];
+  try {
+    overrides = await jobOverridesRepo.listAll();
+  } catch (err) {
+    logger.warn(
+      { err: (err as Error).message },
+      'Falha ao ler job_overrides — usando schedules default',
+    );
+  }
+  const overrideByName = new Map(overrides.map((o) => [o.jobName, o.scheduleOverride]));
+
+  logger.info({ count: jobs.length }, 'Daemon iniciando');
+
+  for (const job of jobs) {
+    const schedule = overrideByName.get(job.name) ?? job.schedule;
+    if (!cron.validate(schedule)) {
+      logger.error(
+        { job: job.name, schedule },
+        'Schedule inválido, daemon abortando',
+      );
+      process.exit(1);
+    }
+
+    applySchedule(job, schedule);
+    const isOverride = schedule !== job.schedule;
+    logger.info(
+      { job: job.name, schedule, timezone: job.timezone, override: isOverride },
+      'Job registrado',
+    );
+  }
+
+  logger.info('Daemon pronto, aguardando schedules');
+}
+
+void bootScheduler();
 
 // HTTP server (dashboard + API). Falha silenciosa se SESSION_KEY não estiver
 // configurado — daemon de cron continua. Útil pra rodar daemon dev sem
@@ -177,12 +215,37 @@ async function startHttpServer(): Promise<void> {
     httpServer = await buildHttpServer({
       container,
       lastRunByJob,
+      effectiveSchedules,
       triggerNow: async (jobName: string): Promise<void> => {
         const job = getJobByName(container, jobName);
         if (!job) {
           throw new Error(`Job não encontrado: ${jobName}`);
         }
         await runJob(job, 'manual');
+      },
+      reloadSchedule: async (
+        jobName: string,
+        newSchedule: string,
+        actor: string,
+      ): Promise<void> => {
+        const job = getJobByName(container, jobName);
+        if (!job) {
+          throw new Error(`Job não encontrado: ${jobName}`);
+        }
+        if (!cron.validate(newSchedule)) {
+          throw new Error(`Schedule inválido: ${newSchedule}`);
+        }
+        // Se o novo schedule bate com o default, apaga o override
+        if (newSchedule === job.schedule) {
+          await jobOverridesRepo.delete(jobName);
+        } else {
+          await jobOverridesRepo.upsert(jobName, newSchedule, actor);
+        }
+        applySchedule(job, newSchedule);
+        logger.info(
+          { job: jobName, newSchedule, actor },
+          'Schedule recarregado',
+        );
       },
     });
     await httpServer.listen({ port, host: '0.0.0.0' });
@@ -206,6 +269,10 @@ const shutdown = async (signal: string): Promise<void> => {
   if (httpServer) {
     await httpServer.close().catch(() => undefined);
   }
+  for (const task of scheduledTasks.values()) {
+    task.stop();
+  }
+  scheduledTasks.clear();
   await db.close();
   logger.info('Shutdown concluído');
   process.exit(0);

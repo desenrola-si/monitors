@@ -13,7 +13,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export interface HttpServerOpts {
   container: Container;
   lastRunByJob: Map<string, JobRunSummary>;
+  /** Map jobName → schedule corrente (default ou override). Atualizado em reload. */
+  effectiveSchedules: Map<string, string>;
   triggerNow: (jobName: string) => Promise<void>;
+  reloadSchedule: (
+    jobName: string,
+    newSchedule: string,
+    actor: string,
+  ) => Promise<void>;
 }
 
 /**
@@ -44,7 +51,9 @@ export async function buildHttpServer(opts: HttpServerOpts): Promise<FastifyInst
     jobsRoutes({
       container: opts.container,
       lastRunByJob: opts.lastRunByJob,
+      effectiveSchedules: opts.effectiveSchedules,
       triggerNow: opts.triggerNow,
+      reloadSchedule: opts.reloadSchedule,
     }),
   );
 

@@ -1,17 +1,25 @@
 <script lang="ts">
   import type { JobInfo } from '../lib/api';
+  import { jobsApi, ApiError } from '../lib/api';
   import { formatDuration, formatRelative } from '../lib/time';
+  import { humanizeCron } from '../lib/cron';
 
   interface Props {
     job: JobInfo;
     triggering: boolean;
     onTrigger: () => void;
     onViewHistory: () => void;
+    onScheduleChanged: () => void;
   }
 
-  let { job, triggering, onTrigger, onViewHistory }: Props = $props();
+  let { job, triggering, onTrigger, onViewHistory, onScheduleChanged }: Props = $props();
 
   const statusInfo = $derived(deriveStatus(job));
+
+  let editingSchedule = $state(false);
+  let scheduleDraft = $state('');
+  let scheduleError = $state<string | null>(null);
+  let savingSchedule = $state(false);
 
   function deriveStatus(j: JobInfo): { variant: string; label: string } {
     if (triggering || j.lastRun?.status === 'running') {
@@ -20,6 +28,59 @@
     if (!j.lastRun) return { variant: 'idle', label: 'nunca rodou' };
     if (j.lastRun.status === 'success') return { variant: 'success', label: 'ok' };
     return { variant: 'failed', label: 'falhou' };
+  }
+
+  function startEditingSchedule(): void {
+    scheduleDraft = job.schedule;
+    scheduleError = null;
+    editingSchedule = true;
+  }
+
+  function cancelEditing(): void {
+    editingSchedule = false;
+    scheduleError = null;
+  }
+
+  async function saveSchedule(): Promise<void> {
+    const trimmed = scheduleDraft.trim();
+    if (!trimmed) {
+      scheduleError = 'Schedule não pode ser vazio';
+      return;
+    }
+    savingSchedule = true;
+    scheduleError = null;
+    try {
+      await jobsApi.updateSchedule(job.name, trimmed);
+      editingSchedule = false;
+      onScheduleChanged();
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 400) {
+        const body = err.body as { message?: string } | null;
+        scheduleError = body?.message ?? 'Schedule inválido';
+      } else {
+        scheduleError = 'Erro ao salvar';
+      }
+    } finally {
+      savingSchedule = false;
+    }
+  }
+
+  async function resetToDefault(): Promise<void> {
+    if (job.schedule === job.scheduleDefault) return;
+    savingSchedule = true;
+    try {
+      await jobsApi.updateSchedule(job.name, job.scheduleDefault);
+      onScheduleChanged();
+    } catch {
+      scheduleError = 'Erro ao resetar';
+    } finally {
+      savingSchedule = false;
+    }
+  }
+
+  function handleScheduleKey(e: KeyboardEvent): void {
+    if (e.key === 'Enter') void saveSchedule();
+    if (e.key === 'Escape') cancelEditing();
   }
 </script>
 
@@ -40,8 +101,56 @@
 
   <dl class="meta">
     <div class="meta-row">
-      <dt>Schedule</dt>
-      <dd><code>{job.schedule}</code> <span class="tertiary">({job.timezone})</span></dd>
+      <dt>Quando roda</dt>
+      <dd class="schedule-cell">
+        {#if editingSchedule}
+          <input
+            type="text"
+            class="schedule-input mono"
+            bind:value={scheduleDraft}
+            disabled={savingSchedule}
+            onkeydown={handleScheduleKey}
+            placeholder="0 6 * * *"
+          />
+          <div class="edit-actions">
+            <button
+              class="btn-mini btn-mini-primary"
+              onclick={saveSchedule}
+              disabled={savingSchedule}
+            >
+              {savingSchedule ? 'Salvando…' : 'Salvar'}
+            </button>
+            <button class="btn-mini" onclick={cancelEditing} disabled={savingSchedule}>
+              Cancelar
+            </button>
+          </div>
+          {#if scheduleError}
+            <div class="schedule-error">{scheduleError}</div>
+          {/if}
+          <a
+            class="schedule-help tertiary"
+            href="https://crontab.guru/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Ajuda com sintaxe cron ↗
+          </a>
+        {:else}
+          <button class="schedule-display" onclick={startEditingSchedule} title="Clique pra editar">
+            <span class="schedule-human">{humanizeCron(job.schedule)}</span>
+            <code class="schedule-cron mono">{job.schedule}</code>
+          </button>
+          <span class="tertiary">{job.timezone.replace('America/', '').replace('_', ' ')}</span>
+          {#if job.scheduleIsOverridden}
+            <span class="override-badge" title="Schedule modificado (default: {job.scheduleDefault})">
+              modificado
+            </span>
+            <button class="reset-link" onclick={resetToDefault} disabled={savingSchedule}>
+              resetar
+            </button>
+          {/if}
+        {/if}
+      </dd>
     </div>
     {#if job.lastRun}
       <div class="meta-row">
@@ -203,6 +312,103 @@
     padding: 1px 6px;
     border-radius: 4px;
     font-size: 12px;
+  }
+  .schedule-cell {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .schedule-display {
+    background: transparent;
+    border: 1px dashed transparent;
+    border-radius: var(--radius-sm);
+    padding: 2px 6px;
+    margin: -2px -6px;
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    text-align: left;
+    cursor: text;
+    transition: all var(--duration-fast) var(--easing-default);
+  }
+  .schedule-display:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-strong);
+  }
+  .schedule-human {
+    color: var(--text-primary);
+    font-size: 13px;
+  }
+  .schedule-cron {
+    color: var(--text-tertiary);
+    font-size: 11px;
+  }
+  .override-badge {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-warning);
+    background: var(--color-warning-bg);
+    border: 1px solid var(--color-warning-border);
+    border-radius: 3px;
+    padding: 1px 6px;
+  }
+  .reset-link {
+    background: transparent;
+    color: var(--text-tertiary);
+    font-size: 11px;
+    text-decoration: underline;
+    padding: 0;
+  }
+  .reset-link:hover {
+    color: var(--text-secondary);
+  }
+  .schedule-input {
+    flex: 1 1 200px;
+    min-width: 160px;
+    padding: var(--space-2) var(--space-3);
+    font-size: 13px;
+  }
+  .edit-actions {
+    display: flex;
+    gap: var(--space-2);
+  }
+  .btn-mini {
+    padding: var(--space-1) var(--space-3);
+    font-size: 12px;
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+  }
+  .btn-mini:hover:not(:disabled) {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+  .btn-mini-primary {
+    background: var(--accent-bg);
+    color: var(--accent);
+    border-color: var(--border-accent);
+  }
+  .btn-mini-primary:hover:not(:disabled) {
+    background: var(--accent);
+    color: white;
+  }
+  .schedule-error {
+    width: 100%;
+    color: var(--color-danger);
+    font-size: 12px;
+    margin-top: var(--space-1);
+  }
+  .schedule-help {
+    width: 100%;
+    font-size: 11px;
+    text-decoration: none;
+    margin-top: var(--space-1);
+  }
+  .schedule-help:hover {
+    color: var(--text-secondary);
   }
   .error-row dd {
     color: var(--color-danger);
