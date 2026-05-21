@@ -6,6 +6,7 @@
   import { formatDuration, formatRelative } from '../lib/time';
   import { humanizeCron, nextRunAt, formatCountdown, formatBrtTime } from '../lib/cron';
   import ScheduleEditor from './ScheduleEditor.svelte';
+  import LogsModal from './LogsModal.svelte';
 
   interface Props {
     job: JobInfo;
@@ -43,6 +44,7 @@
   const statusInfo = $derived(deriveStatus(job));
 
   let scheduleEditorOpen = $state(false);
+  let logsModalOpen = $state(false);
   let savingSchedule = $state(false);
 
   // Now reativo pra countdown do próximo tick. Tick a cada 1s.
@@ -161,17 +163,26 @@
 
   {#if logs.length > 0 || job.lastRun?.status === 'running'}
     <section class="logs-panel" class:logs-expanded={logsExpanded}>
-      <button
-        class="logs-toggle"
-        onclick={() => (logsExpanded = !logsExpanded)}
-        title={logsExpanded ? 'Reduzir painel' : 'Expandir painel'}
-      >
-        <span class="logs-toggle-icon">{logsExpanded ? '▾' : '▸'}</span>
-        <span class="logs-toggle-label">
-          {job.lastRun?.status === 'running' ? 'Logs ao vivo' : 'Últimos logs'}
-        </span>
-        <span class="logs-count">{logs.length}</span>
-      </button>
+      <div class="logs-header">
+        <button
+          class="logs-toggle"
+          onclick={() => (logsExpanded = !logsExpanded)}
+          title={logsExpanded ? 'Reduzir painel' : 'Expandir painel'}
+        >
+          <span class="logs-toggle-icon">{logsExpanded ? '▾' : '▸'}</span>
+          <span class="logs-toggle-label">
+            {job.lastRun?.status === 'running' ? 'Logs ao vivo' : 'Últimos logs'}
+          </span>
+          <span class="logs-count">{logs.length}</span>
+        </button>
+        <button
+          class="logs-fullview"
+          onclick={() => (logsModalOpen = true)}
+          title="Abrir histórico completo com filtros"
+        >
+          ⤢ Ver todos
+        </button>
+      </div>
       <div class="logs-body" bind:this={logsBody}>
         {#if logs.length === 0}
           <div class="logs-empty">aguardando primeiro log…</div>
@@ -209,6 +220,15 @@
     timezone={job.timezone}
     onCancel={() => (scheduleEditorOpen = false)}
     onSave={saveSchedule}
+  />
+{/if}
+
+{#if logsModalOpen}
+  <LogsModal
+    jobName={job.name}
+    jobDisplayName={job.displayName ?? job.name}
+    liveLogs={logs}
+    onClose={() => (logsModalOpen = false)}
   />
 {/if}
 
@@ -398,8 +418,12 @@
     border-radius: var(--radius-md);
     overflow: hidden;
   }
+  .logs-header {
+    display: flex;
+    align-items: stretch;
+  }
   .logs-toggle {
-    width: 100%;
+    flex: 1;
     display: flex;
     align-items: center;
     gap: var(--space-2);
@@ -411,6 +435,18 @@
   }
   .logs-toggle:hover {
     background: var(--bg-hover);
+  }
+  .logs-fullview {
+    padding: var(--space-2) var(--space-3);
+    color: var(--text-tertiary);
+    background: transparent;
+    border-left: 1px solid var(--border-subtle);
+    font-size: 11px;
+    transition: all var(--duration-fast) var(--easing-default);
+  }
+  .logs-fullview:hover {
+    background: var(--accent-bg);
+    color: var(--accent);
   }
   .logs-toggle-icon {
     color: var(--text-tertiary);
