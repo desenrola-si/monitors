@@ -25,7 +25,12 @@ import { yesterdayInSaoPaulo } from './scheduler.js';
 @injectable()
 export class DailyReportsJob extends Job {
   readonly name = 'daily-reports';
-  readonly description = 'Relatório diário por tenant ativo (06:00 BRT)';
+  readonly displayName = 'Relatórios Diários para Clientes';
+  readonly description =
+    'Toda manhã às 6h, gera um relatório personalizado pra cada cliente ativo ' +
+    'sobre o atendimento do dia anterior — volume, conversões, leitura ' +
+    'qualitativa das conversas. Fica disponível em /relatorios-diarios pra ' +
+    'envio manual.';
   readonly schedule = '0 6 * * *';
 
   constructor(

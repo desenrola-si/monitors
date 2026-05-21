@@ -52,6 +52,7 @@ export interface JobRunSummary {
 
 export interface JobInfo {
   name: string;
+  displayName: string | null;
   description: string;
   schedule: string;
   timezone: string;

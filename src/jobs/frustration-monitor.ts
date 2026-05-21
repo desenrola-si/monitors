@@ -77,7 +77,11 @@ function formatPhone(raw: string): string {
 @injectable()
 export class FrustrationMonitorJob extends Job {
   readonly name = 'frustration-monitor';
-  readonly description = `Detecta frustração não escalada em ${TENANT_NAME}`;
+  readonly displayName = `Alerta de Frustração — ${TENANT_NAME}`;
+  readonly description =
+    'Avisa quando um cliente da Amilgás demonstra confusão ou contestação ' +
+    'durante o atendimento e a IA não passa pra uma pessoa. Posta no Google ' +
+    'Chat e acompanha cada caso até ser resolvido ou expirar.';
   readonly schedule = '*/5 * * * *';
 
   constructor(

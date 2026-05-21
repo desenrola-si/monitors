@@ -41,6 +41,7 @@ const jobsRoutes: (opts: JobsRoutesOpts) => FastifyPluginAsync =
       return {
         jobs: jobs.map((j) => ({
           name: j.name,
+          displayName: j.displayName ?? null,
           description: j.description,
           schedule: j.schedule,
           timezone: j.timezone,

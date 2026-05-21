@@ -27,10 +27,15 @@
   <header class="card-header">
     <div class="name-row">
       <span class="status-dot" data-status={statusInfo.variant}></span>
-      <h3 class="name">{job.name}</h3>
+      <h3 class="name" class:humanized={!!job.displayName}>
+        {job.displayName ?? job.name}
+      </h3>
       <span class="status-label">{statusInfo.label}</span>
     </div>
     <p class="description">{job.description}</p>
+    {#if job.displayName}
+      <code class="slug">{job.name}</code>
+    {/if}
   </header>
 
   <dl class="meta">
@@ -138,6 +143,21 @@
     font-weight: 600;
     color: var(--text-primary);
     flex: 1;
+  }
+  .name.humanized {
+    font-family: var(--font-sans);
+    font-size: 15px;
+    letter-spacing: -0.01em;
+  }
+  .slug {
+    display: inline-block;
+    background: var(--bg-overlay);
+    color: var(--text-tertiary);
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-top: var(--space-1);
+    align-self: flex-start;
   }
 
   .status-label {
