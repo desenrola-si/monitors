@@ -60,7 +60,7 @@ for (const job of jobs) {
         logger.error(
           {
             job: job.name,
-            err: (err as Error).message,
+            err,
             ms: Date.now() - t0,
           },
           'Job falhou (daemon continua)',

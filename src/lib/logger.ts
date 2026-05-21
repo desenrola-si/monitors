@@ -15,6 +15,7 @@ export class Logger {
 
     this.base = pino({
       level: process.env.LOG_LEVEL ?? 'info',
+      serializers: { err: pino.stdSerializers.err },
       ...(usePretty && {
         transport: {
           target: 'pino-pretty',
