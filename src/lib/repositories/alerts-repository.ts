@@ -9,7 +9,12 @@ export type AlertTypeCode =
   | 'message_delivery_failure'
   | 'workflow_failure_burst'
   | 'wa_24h_window_closed'
-  | 'ig_dm_silent_drop';
+  | 'ig_dm_silent_drop'
+  | 'crm_automation_step_failed'
+  | 'crm_automation_step_overdue'
+  | 'reservation_duplicate'
+  | 'reservation_outside_slot'
+  | 'session_abandoned_midflow';
 
 export type AlertStatusCode =
   | 'open'
