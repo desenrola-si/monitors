@@ -5,12 +5,17 @@ import { Database } from '../database.js';
 export type AlertTypeCode =
   | 'frustration_not_escalated'
   | 'dm_not_delivered'
-  | 'workflow_failure';
+  | 'workflow_failure'
+  | 'message_delivery_failure'
+  | 'workflow_failure_burst'
+  | 'wa_24h_window_closed'
+  | 'ig_dm_silent_drop';
 
 export type AlertStatusCode =
   | 'open'
   | 'resolved_by_ai'
   | 'resolved_by_human'
+  | 'resolved_auto'
   | 'expired';
 
 export interface AlertRow {
@@ -36,7 +41,11 @@ interface InsertAlertArgs {
 }
 
 interface MarkResolvedArgs {
-  byStatusCode: 'resolved_by_ai' | 'resolved_by_human' | 'expired';
+  byStatusCode:
+    | 'resolved_by_ai'
+    | 'resolved_by_human'
+    | 'resolved_auto'
+    | 'expired';
   note: string;
   evidence?: Record<string, unknown>;
 }
