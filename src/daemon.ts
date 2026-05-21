@@ -44,6 +44,9 @@ const jobOverridesRepo = container.get<JobOverridesRepository>(
   TYPES.JobOverridesRepository,
 );
 const jobEvents = container.get<JobEvents>(TYPES.JobEvents);
+// Liga logger ao event bus ANTES de criar os jobs — assim os children
+// (logger.child({ job: name })) já saem com events bound e emitem job.log.
+logger.setJobEvents(jobEvents);
 const jobs = getAllJobs(container);
 
 const running = new Set<string>();

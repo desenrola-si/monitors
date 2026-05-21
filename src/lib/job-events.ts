@@ -26,7 +26,22 @@ export type JobScheduledEvent = {
   isOverride: boolean;
 };
 
-export type JobEvent = JobStartedEvent | JobFinishedEvent | JobScheduledEvent;
+export type JobLogLevel = 'debug' | 'info' | 'warn' | 'error';
+
+export type JobLogEvent = {
+  type: 'job.log';
+  name: string;
+  level: JobLogLevel;
+  message: string;
+  data: Record<string, unknown> | null;
+  timestamp: string;
+};
+
+export type JobEvent =
+  | JobStartedEvent
+  | JobFinishedEvent
+  | JobScheduledEvent
+  | JobLogEvent;
 
 /**
  * Event bus pra comunicar lifecycle dos jobs entre o daemon (que executa

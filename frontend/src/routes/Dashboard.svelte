@@ -7,6 +7,7 @@
     type JobStartedEvent,
     type JobFinishedEvent,
     type JobScheduledEvent,
+    type JobLogEvent,
   } from '../lib/stream';
   import JobCard from '../components/JobCard.svelte';
   import HistoryDrawer from '../components/HistoryDrawer.svelte';
@@ -25,6 +26,10 @@
   let triggering = $state<Set<string>>(new Set());
   let drawerJobName = $state<string | null>(null);
   let streamConnected = $state(false);
+  // logs por job — limitado às últimas 30 linhas por job pra não estourar memória
+  let logsByJob = $state<Map<string, JobLogEvent[]>>(new Map());
+
+  const LOG_BUFFER = 30;
 
   const REFRESH_MS = 30_000;
   let intervalId: ReturnType<typeof setInterval> | null = null;
@@ -71,6 +76,22 @@
       scheduleDefault: e.scheduleDefault,
       scheduleIsOverridden: e.isOverride,
     });
+  }
+
+  function onLog(e: JobLogEvent): void {
+    const next = new Map(logsByJob);
+    const existing = next.get(e.name) ?? [];
+    const updated = [...existing, e].slice(-LOG_BUFFER);
+    next.set(e.name, updated);
+    logsByJob = next;
+  }
+
+  function onStartedClearLogs(e: JobStartedEvent): void {
+    // Limpa logs do run anterior pra começar fresh
+    const next = new Map(logsByJob);
+    next.set(e.name, []);
+    logsByJob = next;
+    onStarted(e);
   }
 
   async function load(): Promise<void> {
@@ -129,9 +150,10 @@
     // — se SSE cai, browser reconecta sozinho; em paralelo o polling cobre
     // o intervalo em que o stream fica fora.
     closeStream = connectJobsStream({
-      onJobStarted: onStarted,
+      onJobStarted: onStartedClearLogs,
       onJobFinished: onFinished,
       onJobScheduled: onScheduled,
+      onJobLog: onLog,
       onOpen: () => (streamConnected = true),
       onError: () => (streamConnected = false),
     });
@@ -182,6 +204,7 @@
           <JobCard
             {job}
             triggering={triggering.has(job.name)}
+            logs={logsByJob.get(job.name) ?? []}
             onTrigger={() => trigger(job.name)}
             onViewHistory={() => (drawerJobName = job.name)}
             onScheduleChanged={() => void load()}

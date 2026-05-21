@@ -23,12 +23,28 @@ export interface JobScheduledEvent {
   isOverride: boolean;
 }
 
-export type JobEvent = JobStartedEvent | JobFinishedEvent | JobScheduledEvent;
+export type JobLogLevel = 'debug' | 'info' | 'warn' | 'error';
+
+export interface JobLogEvent {
+  type: 'job.log';
+  name: string;
+  level: JobLogLevel;
+  message: string;
+  data: Record<string, unknown> | null;
+  timestamp: string;
+}
+
+export type JobEvent =
+  | JobStartedEvent
+  | JobFinishedEvent
+  | JobScheduledEvent
+  | JobLogEvent;
 
 interface Handlers {
   onJobStarted?: (e: JobStartedEvent) => void;
   onJobFinished?: (e: JobFinishedEvent) => void;
   onJobScheduled?: (e: JobScheduledEvent) => void;
+  onJobLog?: (e: JobLogEvent) => void;
   onOpen?: () => void;
   onError?: () => void;
 }
@@ -50,6 +66,7 @@ export function connectJobsStream(handlers: Handlers): () => void {
       if (event.type === 'job.started') handlers.onJobStarted?.(event);
       else if (event.type === 'job.finished') handlers.onJobFinished?.(event);
       else if (event.type === 'job.scheduled') handlers.onJobScheduled?.(event);
+      else if (event.type === 'job.log') handlers.onJobLog?.(event);
     } catch (err) {
       console.warn('SSE parse error', err, msg.data);
     }

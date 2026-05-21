@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import type { JobInfo } from '../lib/api';
+  import type { JobLogEvent } from '../lib/stream';
   import { jobsApi, ApiError } from '../lib/api';
   import { formatDuration, formatRelative } from '../lib/time';
   import { humanizeCron, nextRunAt, formatCountdown, formatBrtTime } from '../lib/cron';
@@ -8,12 +9,43 @@
   interface Props {
     job: JobInfo;
     triggering: boolean;
+    logs: JobLogEvent[];
     onTrigger: () => void;
     onViewHistory: () => void;
     onScheduleChanged: () => void;
   }
 
-  let { job, triggering, onTrigger, onViewHistory, onScheduleChanged }: Props = $props();
+  let { job, triggering, logs, onTrigger, onViewHistory, onScheduleChanged }: Props = $props();
+
+  let logsExpanded = $state(false);
+  let logsBody = $state<HTMLDivElement | null>(null);
+
+  // Auto-scroll quando logs novos chegarem (e o painel está expandido)
+  $effect(() => {
+    if (!logsExpanded || !logsBody) return;
+    // Re-roda quando logs muda
+    void logs.length;
+    void tick().then(() => {
+      if (logsBody) logsBody.scrollTop = logsBody.scrollHeight;
+    });
+  });
+
+  // Auto-expand quando job começa a rodar; auto-collapse 5s depois de terminar
+  $effect(() => {
+    if (job.lastRun?.status === 'running' && !logsExpanded) {
+      logsExpanded = true;
+    }
+  });
+
+  function formatLogTime(iso: string): string {
+    const d = new Date(iso);
+    return d.toLocaleTimeString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  }
 
   const statusInfo = $derived(deriveStatus(job));
 
@@ -202,6 +234,43 @@
       </div>
     {/if}
   </dl>
+
+  {#if logs.length > 0 || job.lastRun?.status === 'running'}
+    <section class="logs-panel" class:logs-expanded={logsExpanded}>
+      <button
+        class="logs-toggle"
+        onclick={() => (logsExpanded = !logsExpanded)}
+      >
+        <span class="logs-toggle-icon">{logsExpanded ? '▾' : '▸'}</span>
+        <span class="logs-toggle-label">
+          {job.lastRun?.status === 'running' ? 'Logs ao vivo' : 'Logs da última execução'}
+        </span>
+        <span class="logs-count">{logs.length}</span>
+      </button>
+      {#if logsExpanded}
+        <div class="logs-body mono" bind:this={logsBody}>
+          {#if logs.length === 0}
+            <div class="logs-empty">aguardando primeiro log…</div>
+          {:else}
+            {#each logs as log, i (log.timestamp + i)}
+              <div class="log-line" data-level={log.level}>
+                <span class="log-time">{formatLogTime(log.timestamp)}</span>
+                <span class="log-level" data-level={log.level}>
+                  {log.level}
+                </span>
+                <span class="log-msg">{log.message}</span>
+                {#if log.data && Object.keys(log.data).length > 0}
+                  <span class="log-data">
+                    {JSON.stringify(log.data).slice(0, 200)}
+                  </span>
+                {/if}
+              </div>
+            {/each}
+          {/if}
+        </div>
+      {/if}
+    </section>
+  {/if}
 
   <footer class="actions">
     <button class="btn-ghost" onclick={onViewHistory}>Histórico</button>
@@ -441,6 +510,109 @@
   .next-run-time {
     color: var(--accent);
     font-size: 13px;
+  }
+
+  /* — Logs panel — */
+  .logs-panel {
+    background: var(--bg-base);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+  .logs-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    color: var(--text-secondary);
+    font-size: 12px;
+    text-align: left;
+    transition: background var(--duration-fast) var(--easing-default);
+  }
+  .logs-toggle:hover {
+    background: var(--bg-hover);
+  }
+  .logs-toggle-icon {
+    color: var(--text-tertiary);
+    font-size: 10px;
+    width: 12px;
+  }
+  .logs-toggle-label {
+    flex: 1;
+  }
+  .logs-count {
+    color: var(--text-tertiary);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+  }
+  .logs-body {
+    max-height: 220px;
+    overflow-y: auto;
+    padding: var(--space-2) var(--space-3);
+    background: #050608;
+    border-top: 1px solid var(--border-subtle);
+    font-size: 11px;
+    line-height: 1.5;
+  }
+  .logs-empty {
+    color: var(--text-tertiary);
+    text-align: center;
+    padding: var(--space-3);
+    font-style: italic;
+  }
+  .log-line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    padding: 2px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+    word-break: break-word;
+  }
+  .log-line:last-child {
+    border-bottom: none;
+  }
+  .log-time {
+    color: var(--text-tertiary);
+    flex-shrink: 0;
+  }
+  .log-level {
+    text-transform: uppercase;
+    font-size: 9px;
+    padding: 1px 4px;
+    border-radius: 2px;
+    flex-shrink: 0;
+    align-self: center;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+  .log-level[data-level='info'] {
+    background: var(--color-info-bg);
+    color: var(--color-info);
+  }
+  .log-level[data-level='warn'] {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+  }
+  .log-level[data-level='error'] {
+    background: var(--color-danger-bg);
+    color: var(--color-danger);
+  }
+  .log-level[data-level='debug'] {
+    background: var(--bg-overlay);
+    color: var(--text-tertiary);
+  }
+  .log-msg {
+    color: var(--text-primary);
+    flex: 1;
+    min-width: 0;
+  }
+  .log-data {
+    color: var(--text-tertiary);
+    font-size: 10px;
+    width: 100%;
+    padding-left: 20px;
+    opacity: 0.7;
   }
   .error-row dd {
     color: var(--color-danger);
