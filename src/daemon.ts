@@ -179,6 +179,28 @@ async function bootScheduler(): Promise<void> {
   }
   const overrideByName = new Map(overrides.map((o) => [o.jobName, o.scheduleOverride]));
 
+  // Popula cache in-memory de lastRun com a última execução de cada job do DB.
+  // Sem isso, após redeploy o dashboard mostra "nunca rodou" até o próximo tick.
+  for (const job of jobs) {
+    try {
+      const last = await jobRunsRepo.findLastByJob(job.name);
+      if (last) {
+        lastRunByJob.set(job.name, {
+          startedAt: last.startedAt,
+          finishedAt: last.finishedAt,
+          status: last.statusCode,
+          durationMs: last.durationMs,
+          errorMessage: last.errorMessage,
+        });
+      }
+    } catch (err) {
+      logger.warn(
+        { job: job.name, err: (err as Error).message },
+        'Falha ao popular lastRun do DB — cache vazio até próximo tick',
+      );
+    }
+  }
+
   logger.info({ count: jobs.length }, 'Daemon iniciando');
 
   for (const job of jobs) {

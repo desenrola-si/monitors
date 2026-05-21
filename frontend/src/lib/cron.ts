@@ -32,23 +32,29 @@ export function nextRunAt(expr: string, timezone: string): Date | null {
 }
 
 /**
- * Formato amigável: "em 3min", "em 2h 15m", "em 14h".
- * Pra distâncias pequenas (< 60s) retorna "agora".
+ * Formato amigável com segundos visíveis pra criar sensação de tempo real:
+ *   < 60s     → "em Xs"
+ *   < 60min   → "em Xmin Ys"
+ *   < 24h     → "em Xh Ymin Zs"
+ *   >= 24h    → "em Xd Yh"
+ *
+ * Atualizado a cada 1s pelo componente que chama → countdown ao vivo.
  */
 export function formatCountdown(target: Date, now: Date = new Date()): string {
   const diffMs = target.getTime() - now.getTime();
   if (diffMs <= 0) return 'agora';
   const totalSec = Math.floor(diffMs / 1000);
-  if (totalSec < 60) return `em ${totalSec}s`;
-  const min = Math.floor(totalSec / 60);
-  if (min < 60) return `em ${min}min`;
-  const hr = Math.floor(min / 60);
-  const remMin = min % 60;
-  if (hr < 24) {
-    return remMin > 0 ? `em ${hr}h ${remMin}m` : `em ${hr}h`;
-  }
-  const days = Math.floor(hr / 24);
-  return `em ${days}d`;
+  const s = totalSec % 60;
+  const totalMin = Math.floor(totalSec / 60);
+  const m = totalMin % 60;
+  const totalHr = Math.floor(totalMin / 60);
+  const h = totalHr % 24;
+  const d = Math.floor(totalHr / 24);
+
+  if (d > 0) return `em ${d}d ${h}h`;
+  if (totalHr > 0) return `em ${h}h ${m}min ${s}s`;
+  if (totalMin > 0) return `em ${m}min ${s}s`;
+  return `em ${s}s`;
 }
 
 /**
