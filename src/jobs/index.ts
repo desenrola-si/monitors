@@ -1,6 +1,7 @@
 import { Container } from 'inversify';
 import { Job } from '../lib/job.js';
 import { HeartbeatJob } from './heartbeat.js';
+import { FrustrationMonitorJob } from './frustration-monitor.js';
 
 /**
  * Registro central de jobs. Pra adicionar novo cron:
@@ -12,7 +13,7 @@ import { HeartbeatJob } from './heartbeat.js';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const JOB_CLASSES: Array<new (...args: any[]) => Job> = [
   HeartbeatJob,
-  // adicione novos jobs aqui
+  FrustrationMonitorJob,
 ];
 
 export function registerJobs(container: Container): void {
