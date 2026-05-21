@@ -38,6 +38,7 @@ async function main(): Promise<void> {
     logger.error({ arg }, `Job desconhecido. Use --list pra ver os disponíveis.`);
     await db.close();
     process.exit(1);
+    return; // unreachable mas ajuda o TS narrow
   }
 
   const t0 = Date.now();
