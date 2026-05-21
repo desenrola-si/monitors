@@ -16,6 +16,7 @@ import { buildHttpServer } from './http/server.js';
 import { JobRunSummary } from './http/routes/jobs.js';
 import { JobRunsRepository } from './lib/repositories/job-runs-repository.js';
 import { JobOverridesRepository } from './lib/repositories/job-overrides-repository.js';
+import { JobLogsRepository } from './lib/repositories/job-logs-repository.js';
 import { JobEvents } from './lib/job-events.js';
 import type { ScheduledTask } from 'node-cron';
 
@@ -44,10 +45,32 @@ const jobOverridesRepo = container.get<JobOverridesRepository>(
   TYPES.JobOverridesRepository,
 );
 const jobEvents = container.get<JobEvents>(TYPES.JobEvents);
+const jobLogsRepo = container.get<JobLogsRepository>(TYPES.JobLogsRepository);
 // Liga logger ao event bus ANTES de criar os jobs — assim os children
 // (logger.child({ job: name })) já saem com events bound e emitem job.log.
 logger.setJobEvents(jobEvents);
 const jobs = getAllJobs(container);
+
+// Persiste cada log do JobEvents em job_logs. Não bloqueia o emit (async fire
+// and forget) — se DB cair, perde o log mas o daemon continua. Pequeno catch
+// pra não derrubar processo se Promise.reject scapar.
+jobEvents.on((event) => {
+  if (event.type !== 'job.log') return;
+  void jobLogsRepo
+    .insert({
+      jobName: event.name,
+      level: event.level,
+      message: event.message,
+      data: event.data,
+      createdAt: event.timestamp,
+    })
+    .catch((err: Error) => {
+      // Não usa o logger aqui pra evitar loop infinito (log do erro
+      // dispara novo job.log que dispara novo INSERT que pode falhar de novo)
+      // eslint-disable-next-line no-console
+      console.warn('[job_logs persist failed]', err.message);
+    });
+});
 
 const running = new Set<string>();
 const lastRunByJob = new Map<string, JobRunSummary>();

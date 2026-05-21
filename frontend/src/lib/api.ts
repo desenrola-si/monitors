@@ -73,10 +73,19 @@ export const authApi = {
   logout: () => api.post<{ ok: boolean }>('/logout'),
 };
 
+export interface JobLogEntry {
+  timestamp: string;
+  level: 'debug' | 'info' | 'warn' | 'error';
+  message: string;
+  data: Record<string, unknown> | null;
+}
+
 export const jobsApi = {
   list: () => api.get<JobsList>('/api/jobs'),
   trigger: (name: string) => api.post<{ ok: boolean }>(`/api/jobs/${name}/trigger`),
   runs: (name: string) => api.get<{ runs: JobRunSummary[] }>(`/api/jobs/${name}/runs`),
+  logs: (name: string, limit = 50) =>
+    api.get<{ logs: JobLogEntry[] }>(`/api/jobs/${name}/logs?limit=${limit}`),
   updateSchedule: (name: string, schedule: string) =>
     api.put<{ ok: boolean; schedule: string }>(`/api/jobs/${name}/schedule`, {
       schedule,

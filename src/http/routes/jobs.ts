@@ -4,6 +4,7 @@ import { getAllJobs, getJobByName } from '../../jobs/index.js';
 import { Job } from '../../lib/job.js';
 import { TYPES } from '../../lib/types.js';
 import { JobRunsRepository } from '../../lib/repositories/job-runs-repository.js';
+import { JobLogsRepository } from '../../lib/repositories/job-logs-repository.js';
 
 interface JobsRoutesOpts {
   container: Container;
@@ -38,6 +39,9 @@ const jobsRoutes: (opts: JobsRoutesOpts) => FastifyPluginAsync =
   async (fastify) => {
     const jobRunsRepo = container.get<JobRunsRepository>(
       TYPES.JobRunsRepository,
+    );
+    const jobLogsRepo = container.get<JobLogsRepository>(
+      TYPES.JobLogsRepository,
     );
 
     fastify.addHook('preHandler', fastify.requireAuth);
@@ -107,6 +111,37 @@ const jobsRoutes: (opts: JobsRoutesOpts) => FastifyPluginAsync =
           });
         }
       },
+    });
+
+    fastify.get<{
+      Params: { name: string };
+      Querystring: { limit?: string };
+    }>('/api/jobs/:name/logs', async (req, reply) => {
+      const job = getJobByName(container, req.params.name);
+      if (!job) {
+        return reply.code(404).send({ error: 'job_not_found' });
+      }
+      const limit = Math.min(
+        parseInt(req.query.limit ?? '50', 10) || 50,
+        500,
+      );
+      try {
+        const rows = await jobLogsRepo.listByJob(req.params.name, limit);
+        return reply.send({
+          logs: rows.map((r) => ({
+            timestamp: r.createdAt,
+            level: r.level,
+            message: r.message,
+            data: r.data,
+          })),
+        });
+      } catch (err) {
+        fastify.log.warn(
+          { err, job: req.params.name },
+          'job_logs DB unavailable, returning empty',
+        );
+        return reply.send({ logs: [] });
+      }
     });
 
     fastify.get<{

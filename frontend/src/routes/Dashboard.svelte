@@ -86,11 +86,9 @@
     logsByJob = next;
   }
 
-  function onStartedClearLogs(e: JobStartedEvent): void {
-    // Limpa logs do run anterior pra começar fresh
-    const next = new Map(logsByJob);
-    next.set(e.name, []);
-    logsByJob = next;
+  function onStartedKeepLogs(e: JobStartedEvent): void {
+    // Mantém logs do run anterior — separador visual pode vir depois se quisermos.
+    // Os logs novos vão se concatenar na sequência via onLog (buffer de 30 linhas).
     onStarted(e);
   }
 
@@ -109,6 +107,33 @@
     } finally {
       loading = false;
     }
+  }
+
+  // Hidrata logs do DB ao mount pra que refresh não perca histórico.
+  // SSE depois adiciona novos em tempo real por cima.
+  async function hydrateLogs(): Promise<void> {
+    const next = new Map<string, JobLogEvent[]>();
+    await Promise.all(
+      jobs.map(async (job) => {
+        try {
+          const res = await jobsApi.logs(job.name, LOG_BUFFER);
+          next.set(
+            job.name,
+            res.logs.map((l) => ({
+              type: 'job.log' as const,
+              name: job.name,
+              level: l.level,
+              message: l.message,
+              data: l.data,
+              timestamp: l.timestamp,
+            })),
+          );
+        } catch {
+          // job sem logs ainda ou DB indisponível — ignora
+        }
+      }),
+    );
+    logsByJob = next;
   }
 
   async function trigger(name: string): Promise<void> {
@@ -142,7 +167,12 @@
   }
 
   onMount(() => {
-    void load();
+    void (async () => {
+      await load();
+      // Após carregar a lista de jobs, hidrata logs persistidos do DB.
+      // SSE depois empurra novos em tempo real por cima.
+      await hydrateLogs();
+    })();
     intervalId = setInterval(() => void load(), REFRESH_MS);
     document.addEventListener('visibilitychange', handleVisibility);
 
@@ -150,7 +180,7 @@
     // — se SSE cai, browser reconecta sozinho; em paralelo o polling cobre
     // o intervalo em que o stream fica fora.
     closeStream = connectJobsStream({
-      onJobStarted: onStartedClearLogs,
+      onJobStarted: onStartedKeepLogs,
       onJobFinished: onFinished,
       onJobScheduled: onScheduled,
       onJobLog: onLog,

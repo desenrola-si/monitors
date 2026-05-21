@@ -96,14 +96,25 @@ export class FrustrationMonitorJob extends Job {
 
   async run(): Promise<void> {
     const log = this.logger.child({ job: this.name });
-    await this.detectNew(log);
-    await this.reEvaluateOpen(log);
+    const t0 = Date.now();
+    log.info(`Início do tick — tenant=${TENANT_NAME}`);
+
+    const detected = await this.detectNew(log);
+    const resolved = await this.reEvaluateOpen(log);
+
+    const ms = Date.now() - t0;
+    log.info(
+      `Tick concluído em ${ms}ms — ${detected} alerts novos, ${resolved} resolvidos`,
+    );
   }
 
   // — Passo 1: novos sinais ativos viram alerts —
-  private async detectNew(log: Logger): Promise<void> {
+  private async detectNew(log: Logger): Promise<number> {
     const sinceUtc = new Date(Date.now() - 24 * 3600 * 1000);
     const handoffLookbackUtc = new Date(Date.now() - 7 * 24 * 3600 * 1000);
+    log.debug(
+      `Detectando sinais — janela ${sinceUtc.toISOString()} até agora, handoff lookback ${handoffLookbackUtc.toISOString()}`,
+    );
 
     const rows = await this.db.query<FrustrationRow>(
       `
@@ -159,15 +170,25 @@ export class FrustrationMonitorJob extends Job {
       ],
     );
 
-    log.info({ found: rows.length }, 'detectNew: sinais ativos');
+    if (rows.length === 0) {
+      log.info('Nenhum sinal ativo encontrado na janela de 24h');
+      return 0;
+    }
+    log.info(`${rows.length} sinal(is) ativo(s) detectado(s) na janela de 24h`);
 
+    let novosNoTick = 0;
     for (const row of rows) {
+      const phone = formatPhone(row.phone);
+      log.info(
+        `→ Cliente ${phone} sinalizou em ${row.first_signal_brt} BRT: "${row.signals.slice(0, 80)}..."`,
+      );
+
       const fingerprint = `frust::${TENANT_ID}::${row.phone}::${row.first_signal_utc}`;
       const payload: FrustrationPayload = {
         first_signal_utc: row.first_signal_utc,
         first_signal_brt: row.first_signal_brt,
         signals: row.signals,
-        phone_formatted: formatPhone(row.phone),
+        phone_formatted: phone,
       };
 
       const created = await this.alertsRepo.insertOpen({
@@ -179,35 +200,67 @@ export class FrustrationMonitorJob extends Job {
       });
 
       if (created) {
-        await this.notifier.googleChat(this.formatNewAlertMessage(row));
+        novosNoTick++;
         log.warn(
-          { alert_id: created.id, phone: row.phone },
-          'alert criado e notificado',
+          `🚨 NOVO ALERT #${created.id} criado pra ${phone} — disparando notificação Google Chat`,
         );
+        await this.notifier.googleChat(this.formatNewAlertMessage(row));
+        log.info(`✅ Notificação enviada pra alert #${created.id}`);
+      } else {
+        log.debug(`Alert pra ${phone} já existia (fingerprint match) — skip notify`);
       }
     }
+
+    if (novosNoTick === 0) {
+      log.info(`Todos ${rows.length} sinais já estavam tracked (sem alerts novos)`);
+    }
+    return novosNoTick;
   }
 
   // — Passo 2: re-avalia alerts open pra ver se resolveram —
-  private async reEvaluateOpen(log: Logger): Promise<void> {
+  private async reEvaluateOpen(log: Logger): Promise<number> {
     const open = await this.alertsRepo.listOpenByType(
       'frustration_not_escalated',
     );
-    log.info({ open: open.length }, 'reEvaluateOpen: alerts em aberto');
+    if (open.length === 0) {
+      log.debug('Nenhum alert open pra re-avaliar');
+      return 0;
+    }
+    log.info(`Re-avaliando ${open.length} alert(s) ainda em aberto`);
 
+    let resolvedCount = 0;
     for (const alert of open) {
+      const payload = alert.payload as FrustrationPayload;
+      const phone = payload.phone_formatted;
+      log.debug(`Checando alert #${alert.id} (${phone})`);
+
       const resolution = await this.checkResolution(alert);
-      if (!resolution) continue;
+      if (!resolution) {
+        log.debug(`Alert #${alert.id} ainda sem resolução`);
+        continue;
+      }
+
+      const emoji =
+        resolution.byStatusCode === 'resolved_by_ai'
+          ? '🤖✅'
+          : resolution.byStatusCode === 'resolved_by_human'
+            ? '✅'
+            : '⏰';
+      log.info(
+        `${emoji} Alert #${alert.id} (${phone}) → ${resolution.byStatusCode}: ${resolution.note}`,
+      );
 
       await this.alertsRepo.markResolved(alert.id, resolution);
       await this.notifier.googleChat(
         this.formatResolutionMessage(alert, resolution),
       );
-      log.info(
-        { alert_id: alert.id, by: resolution.byStatusCode },
-        'alert resolvido',
-      );
+      resolvedCount++;
     }
+
+    if (resolvedCount === 0) {
+      log.info(`Nenhum dos ${open.length} alerts open resolveu neste tick`);
+    }
+    return resolvedCount;
   }
 
   private async checkResolution(alert: AlertRow): Promise<{
