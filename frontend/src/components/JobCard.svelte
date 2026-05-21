@@ -172,22 +172,19 @@
         </span>
         <span class="logs-count">{logs.length}</span>
       </button>
-      <div class="logs-body mono" bind:this={logsBody}>
+      <div class="logs-body" bind:this={logsBody}>
         {#if logs.length === 0}
           <div class="logs-empty">aguardando primeiro log…</div>
         {:else}
           {#each logs as log, i (log.timestamp + i)}
             <div class="log-line" data-level={log.level}>
-              <span class="log-time">{formatLogTime(log.timestamp)}</span>
-              <span class="log-level" data-level={log.level}>
-                {log.level}
+              <span class="log-time mono">{formatLogTime(log.timestamp)}</span>
+              <span class="log-level-dot" data-level={log.level} title={log.level}>
+                {log.level.charAt(0).toUpperCase()}
               </span>
-              <span class="log-msg">{log.message}</span>
-              {#if log.data && Object.keys(log.data).length > 0}
-                <span class="log-data">
-                  {JSON.stringify(log.data).slice(0, 200)}
-                </span>
-              {/if}
+              <span class="log-msg">
+                {log.message}{#if log.data && Object.keys(log.data).length > 0}<span class="log-data mono">  {JSON.stringify(log.data).slice(0, 160)}</span>{/if}
+              </span>
             </div>
           {/each}
         {/if}
@@ -429,17 +426,17 @@
     font-variant-numeric: tabular-nums;
   }
   .logs-body {
-    max-height: 90px;
+    max-height: 130px;
     overflow-y: auto;
     padding: var(--space-2) var(--space-3);
-    background: #050608;
+    background: #060708;
     border-top: 1px solid var(--border-subtle);
-    font-size: 11px;
-    line-height: 1.5;
+    font-size: 12px;
+    line-height: 1.45;
     transition: max-height var(--duration-normal) var(--easing-default);
   }
   .logs-panel.logs-expanded .logs-body {
-    max-height: 280px;
+    max-height: 320px;
   }
   .logs-empty {
     color: var(--text-tertiary);
@@ -448,56 +445,67 @@
     font-style: italic;
   }
   .log-line {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    padding: 2px 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.02);
-    word-break: break-word;
-  }
-  .log-line:last-child {
-    border-bottom: none;
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    gap: 8px;
+    padding: 3px 0;
+    align-items: baseline;
   }
   .log-time {
     color: var(--text-tertiary);
+    font-size: 10px;
     flex-shrink: 0;
+    align-self: baseline;
+    font-variant-numeric: tabular-nums;
   }
-  .log-level {
-    text-transform: uppercase;
+  .log-level-dot {
+    width: 14px;
+    height: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    flex-shrink: 0;
     font-size: 9px;
-    padding: 1px 4px;
-    border-radius: 2px;
-    flex-shrink: 0;
-    align-self: center;
-    font-weight: 600;
-    letter-spacing: 0.05em;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    align-self: baseline;
+    margin-top: 2px;
   }
-  .log-level[data-level='info'] {
-    background: var(--color-info-bg);
+  .log-level-dot[data-level='info'] {
+    background: rgba(96, 165, 250, 0.15);
     color: var(--color-info);
   }
-  .log-level[data-level='warn'] {
-    background: var(--color-warning-bg);
+  .log-level-dot[data-level='warn'] {
+    background: rgba(251, 191, 36, 0.15);
     color: var(--color-warning);
   }
-  .log-level[data-level='error'] {
-    background: var(--color-danger-bg);
+  .log-level-dot[data-level='error'] {
+    background: rgba(248, 113, 113, 0.18);
     color: var(--color-danger);
   }
-  .log-level[data-level='debug'] {
-    background: var(--bg-overlay);
+  .log-level-dot[data-level='debug'] {
+    background: rgba(255, 255, 255, 0.04);
     color: var(--text-tertiary);
   }
   .log-msg {
     color: var(--text-primary);
-    flex: 1;
     min-width: 0;
+    word-break: break-word;
+  }
+  .log-line[data-level='warn'] .log-msg {
+    color: var(--color-warning);
+  }
+  .log-line[data-level='error'] .log-msg {
+    color: var(--color-danger);
+  }
+  .log-line[data-level='debug'] .log-msg {
+    color: var(--text-secondary);
   }
   .log-data {
     color: var(--text-tertiary);
     font-size: 10px;
-    width: 100%;
-    padding-left: 20px;
+    margin-left: 4px;
     opacity: 0.7;
   }
   .error-row dd {
