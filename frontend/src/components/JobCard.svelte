@@ -20,21 +20,13 @@
   let logsExpanded = $state(false);
   let logsBody = $state<HTMLDivElement | null>(null);
 
-  // Auto-scroll quando logs novos chegarem (e o painel está expandido)
+  // Auto-scroll sempre que logs mudam (independente de expandido ou não)
   $effect(() => {
-    if (!logsExpanded || !logsBody) return;
-    // Re-roda quando logs muda
+    if (!logsBody) return;
     void logs.length;
     void tick().then(() => {
       if (logsBody) logsBody.scrollTop = logsBody.scrollHeight;
     });
-  });
-
-  // Auto-expand quando job começa a rodar; auto-collapse 5s depois de terminar
-  $effect(() => {
-    if (job.lastRun?.status === 'running' && !logsExpanded) {
-      logsExpanded = true;
-    }
   });
 
   function formatLogTime(iso: string): string {
@@ -240,35 +232,34 @@
       <button
         class="logs-toggle"
         onclick={() => (logsExpanded = !logsExpanded)}
+        title={logsExpanded ? 'Reduzir painel' : 'Expandir painel'}
       >
         <span class="logs-toggle-icon">{logsExpanded ? '▾' : '▸'}</span>
         <span class="logs-toggle-label">
-          {job.lastRun?.status === 'running' ? 'Logs ao vivo' : 'Logs da última execução'}
+          {job.lastRun?.status === 'running' ? 'Logs ao vivo' : 'Últimos logs'}
         </span>
         <span class="logs-count">{logs.length}</span>
       </button>
-      {#if logsExpanded}
-        <div class="logs-body mono" bind:this={logsBody}>
-          {#if logs.length === 0}
-            <div class="logs-empty">aguardando primeiro log…</div>
-          {:else}
-            {#each logs as log, i (log.timestamp + i)}
-              <div class="log-line" data-level={log.level}>
-                <span class="log-time">{formatLogTime(log.timestamp)}</span>
-                <span class="log-level" data-level={log.level}>
-                  {log.level}
+      <div class="logs-body mono" bind:this={logsBody}>
+        {#if logs.length === 0}
+          <div class="logs-empty">aguardando primeiro log…</div>
+        {:else}
+          {#each logs as log, i (log.timestamp + i)}
+            <div class="log-line" data-level={log.level}>
+              <span class="log-time">{formatLogTime(log.timestamp)}</span>
+              <span class="log-level" data-level={log.level}>
+                {log.level}
+              </span>
+              <span class="log-msg">{log.message}</span>
+              {#if log.data && Object.keys(log.data).length > 0}
+                <span class="log-data">
+                  {JSON.stringify(log.data).slice(0, 200)}
                 </span>
-                <span class="log-msg">{log.message}</span>
-                {#if log.data && Object.keys(log.data).length > 0}
-                  <span class="log-data">
-                    {JSON.stringify(log.data).slice(0, 200)}
-                  </span>
-                {/if}
-              </div>
-            {/each}
-          {/if}
-        </div>
-      {/if}
+              {/if}
+            </div>
+          {/each}
+        {/if}
+      </div>
     </section>
   {/if}
 
@@ -547,13 +538,17 @@
     font-variant-numeric: tabular-nums;
   }
   .logs-body {
-    max-height: 220px;
+    max-height: 90px;
     overflow-y: auto;
     padding: var(--space-2) var(--space-3);
     background: #050608;
     border-top: 1px solid var(--border-subtle);
     font-size: 11px;
     line-height: 1.5;
+    transition: max-height var(--duration-normal) var(--easing-default);
+  }
+  .logs-panel.logs-expanded .logs-body {
+    max-height: 280px;
   }
   .logs-empty {
     color: var(--text-tertiary);
