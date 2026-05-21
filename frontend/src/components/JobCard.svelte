@@ -1,8 +1,9 @@
 <script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
   import type { JobInfo } from '../lib/api';
   import { jobsApi, ApiError } from '../lib/api';
   import { formatDuration, formatRelative } from '../lib/time';
-  import { humanizeCron } from '../lib/cron';
+  import { humanizeCron, nextRunAt, formatCountdown, formatBrtTime } from '../lib/cron';
 
   interface Props {
     job: JobInfo;
@@ -20,6 +21,26 @@
   let scheduleDraft = $state('');
   let scheduleError = $state<string | null>(null);
   let savingSchedule = $state(false);
+
+  // Now reativo pra countdown do próximo tick. Tick a cada 1s.
+  let now = $state(new Date());
+  let tickerId: ReturnType<typeof setInterval> | null = null;
+
+  onMount(() => {
+    tickerId = setInterval(() => {
+      now = new Date();
+    }, 1000);
+  });
+  onDestroy(() => {
+    if (tickerId) clearInterval(tickerId);
+  });
+
+  const nextRun = $derived(nextRunAt(job.schedule, job.timezone));
+  const nextRunLabel = $derived(
+    nextRun
+      ? `${formatBrtTime(nextRun)} · ${formatCountdown(nextRun, now)}`
+      : 'desconhecido',
+  );
 
   function deriveStatus(j: JobInfo): { variant: string; label: string } {
     if (triggering || j.lastRun?.status === 'running') {
@@ -150,6 +171,12 @@
             </button>
           {/if}
         {/if}
+      </dd>
+    </div>
+    <div class="meta-row">
+      <dt>Próxima execução</dt>
+      <dd class="next-run">
+        <span class="next-run-time mono">{nextRunLabel}</span>
       </dd>
     </div>
     {#if job.lastRun}
@@ -409,6 +436,10 @@
   }
   .schedule-help:hover {
     color: var(--text-secondary);
+  }
+  .next-run-time {
+    color: var(--accent);
+    font-size: 13px;
   }
   .error-row dd {
     color: var(--color-danger);
