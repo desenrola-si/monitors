@@ -1,11 +1,22 @@
+// Log síncrono ANTES de qualquer import — sinal de vida bruto. Se algo
+// quebrar no boot (DI, env, pino), pelo menos esse stdout aparece.
+// eslint-disable-next-line no-console
+console.log(`[boot] daemon starting pid=${process.pid} node=${process.version} env=${process.env.NODE_ENV ?? 'undefined'}`);
+
 import 'reflect-metadata';
 import 'dotenv/config';
 import cron from 'node-cron';
 import { buildContainer } from './lib/container.js';
-import { getAllJobs } from './jobs/index.js';
+import { getAllJobs, getJobByName } from './jobs/index.js';
 import { TYPES } from './lib/types.js';
 import { Logger } from './lib/logger.js';
 import { Database } from './lib/database.js';
+import { Job } from './lib/job.js';
+import { buildHttpServer } from './http/server.js';
+import { JobRunSummary } from './http/routes/jobs.js';
+
+// eslint-disable-next-line no-console
+console.log(`[boot] imports loaded, building container`);
 
 /**
  * Daemon que registra todos os jobs no node-cron e fica vivo até SIGTERM.
@@ -17,6 +28,8 @@ import { Database } from './lib/database.js';
  * - Set `running` previne overlap: se job N ainda rodando, próxima execução skip
  * - Erros do job NÃO matam o daemon (try/catch interno)
  * - SIGTERM: aguarda jobs em andamento por 30s, fecha pools, sai
+ *
+ * Inclui também HTTP server (Fastify) lado-a-lado pro dashboard.
  */
 
 const container = buildContainer();
@@ -25,6 +38,60 @@ const db = container.get<Database>(TYPES.Database);
 const jobs = getAllJobs(container);
 
 const running = new Set<string>();
+const lastRunByJob = new Map<string, JobRunSummary>();
+
+/**
+ * Executa um job com tracking de overlap + lastRun. Compartilhado entre o
+ * scheduler do cron e o `triggerNow` exposto via HTTP.
+ */
+async function runJob(job: Job, source: 'cron' | 'manual'): Promise<void> {
+  if (running.has(job.name)) {
+    logger.warn(
+      { job: job.name, source },
+      'Skip — execução anterior ainda em andamento',
+    );
+    return;
+  }
+  running.add(job.name);
+  const startedAt = new Date().toISOString();
+  const t0 = Date.now();
+  lastRunByJob.set(job.name, {
+    startedAt,
+    finishedAt: null,
+    status: 'running',
+    durationMs: null,
+    errorMessage: null,
+  });
+  logger.info({ job: job.name, source }, 'Job iniciando');
+  try {
+    await job.run();
+    const durationMs = Date.now() - t0;
+    lastRunByJob.set(job.name, {
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      status: 'success',
+      durationMs,
+      errorMessage: null,
+    });
+    logger.info({ job: job.name, ms: durationMs }, 'Job concluído');
+  } catch (err) {
+    const durationMs = Date.now() - t0;
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    lastRunByJob.set(job.name, {
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      status: 'failed',
+      durationMs,
+      errorMessage,
+    });
+    logger.error(
+      { job: job.name, err, ms: durationMs },
+      'Job falhou (daemon continua)',
+    );
+  } finally {
+    running.delete(job.name);
+  }
+}
 
 logger.info({ count: jobs.length }, 'Daemon iniciando');
 
@@ -37,40 +104,9 @@ for (const job of jobs) {
     process.exit(1);
   }
 
-  cron.schedule(
-    job.schedule,
-    async () => {
-      if (running.has(job.name)) {
-        logger.warn(
-          { job: job.name },
-          'Skip — execução anterior ainda em andamento',
-        );
-        return;
-      }
-      running.add(job.name);
-      const t0 = Date.now();
-      logger.info({ job: job.name }, 'Job iniciando');
-      try {
-        await job.run();
-        logger.info(
-          { job: job.name, ms: Date.now() - t0 },
-          'Job concluído',
-        );
-      } catch (err) {
-        logger.error(
-          {
-            job: job.name,
-            err,
-            ms: Date.now() - t0,
-          },
-          'Job falhou (daemon continua)',
-        );
-      } finally {
-        running.delete(job.name);
-      }
-    },
-    { timezone: job.timezone },
-  );
+  cron.schedule(job.schedule, () => void runJob(job, 'cron'), {
+    timezone: job.timezone,
+  });
 
   logger.info(
     { job: job.name, schedule: job.schedule, timezone: job.timezone },
@@ -80,6 +116,34 @@ for (const job of jobs) {
 
 logger.info('Daemon pronto, aguardando schedules');
 
+// HTTP server (dashboard + API). Falha silenciosa se SESSION_KEY não estiver
+// configurado — daemon de cron continua. Útil pra rodar daemon dev sem
+// configurar tudo do http.
+let httpServer: Awaited<ReturnType<typeof buildHttpServer>> | null = null;
+
+async function startHttpServer(): Promise<void> {
+  try {
+    const port = Number(process.env.PORT ?? 3000);
+    httpServer = await buildHttpServer({
+      container,
+      lastRunByJob,
+      triggerNow: async (jobName: string): Promise<void> => {
+        const job = getJobByName(container, jobName);
+        if (!job) {
+          throw new Error(`Job não encontrado: ${jobName}`);
+        }
+        await runJob(job, 'manual');
+      },
+    });
+    await httpServer.listen({ port, host: '0.0.0.0' });
+    logger.info({ port }, 'HTTP server pronto');
+  } catch (err) {
+    logger.error({ err }, 'HTTP server falhou ao subir — daemon continua só com crons');
+  }
+}
+
+void startHttpServer();
+
 const shutdown = async (signal: string): Promise<void> => {
   logger.info({ signal }, 'Shutdown recebido — aguardando jobs (max 30s)');
   const deadline = Date.now() + 30_000;
@@ -88,6 +152,9 @@ const shutdown = async (signal: string): Promise<void> => {
   }
   if (running.size > 0) {
     logger.warn({ jobs: [...running] }, 'Encerrando com jobs ainda em andamento');
+  }
+  if (httpServer) {
+    await httpServer.close().catch(() => undefined);
   }
   await db.close();
   logger.info('Shutdown concluído');
