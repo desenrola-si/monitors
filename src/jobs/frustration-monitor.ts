@@ -26,6 +26,18 @@ const IA_HANDOFF_REGEX =
   'transferir.*(atendente|humano)|atendente\\s+humano|' +
   'um\\s+atendente\\s+nosso|vou\\s+transferir|encaminhar.*atendente';
 
+// Mensagem CURTA do cliente que indica aceitação/satisfação após o sinal de
+// frustração — sinaliza que a IA esclareceu na sequência e o cliente concordou.
+// Aplicado só pra mensagens com length < 30 pra não pegar "ok mas tá errado".
+//
+// Reduz falso positivo do caso Luciana/Amilgás (21/05): cliente disse "Não
+// entendi, tá agendado ou não?", IA esclareceu, cliente respondeu "Ok".
+const USER_ACK_REGEX =
+  '^\\s*(ok|blz|beleza|valeu|obrigad[ao]s?|' +
+  't[áa]\\s+(ok|bom|certo|joia|tranquilo)|' +
+  'perfeito|certo|isso|entend[ai]|entendido|sim|' +
+  'combinad[ao]|joia|legal|otimo|[óo]timo)[\\s!.…👍✅🙏]*$';
+
 interface FrustrationRow {
   phone: string;
   first_signal_brt: string;
@@ -104,6 +116,17 @@ export class FrustrationMonitorJob extends Job {
           AND i.origin = 'agent'
           AND i.message ~* $5
       )
+      AND NOT EXISTS (
+        -- Cliente respondeu OK curto em até 30min após o sinal → IA já esclareceu
+        SELECT 1 FROM message_logs ack
+        WHERE ack.tenant_id = $1
+          AND ack.request_id = f.request_id
+          AND ack.receivad_at > f.first_signal
+          AND ack.receivad_at <= f.first_signal + INTERVAL '30 minutes'
+          AND ack.origin = 'user'
+          AND length(ack.message) < 30
+          AND ack.message ~* $6
+      )
       ORDER BY f.first_signal DESC
       `,
       [
@@ -112,6 +135,7 @@ export class FrustrationMonitorJob extends Job {
         FRUSTRATION_SIGNAL_REGEX,
         handoffLookbackUtc.toISOString(),
         IA_HANDOFF_REGEX,
+        USER_ACK_REGEX,
       ],
     );
 
