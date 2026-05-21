@@ -9,6 +9,7 @@ import { JobRunsRepository } from './repositories/job-runs-repository.js';
 import { JobOverridesRepository } from './repositories/job-overrides-repository.js';
 import { JobLogsRepository } from './repositories/job-logs-repository.js';
 import { HealthCheckRepository } from './repositories/health-check-repository.js';
+import { PortfolioRepository } from './repositories/portfolio-repository.js';
 import { JobEvents } from './job-events.js';
 import { registerJobs } from '../jobs/index.js';
 
@@ -27,6 +28,7 @@ export function buildContainer(): Container {
   container.bind<JobOverridesRepository>(TYPES.JobOverridesRepository).to(JobOverridesRepository);
   container.bind<JobLogsRepository>(TYPES.JobLogsRepository).to(JobLogsRepository);
   container.bind<HealthCheckRepository>(TYPES.HealthCheckRepository).to(HealthCheckRepository);
+  container.bind<PortfolioRepository>(TYPES.PortfolioRepository).to(PortfolioRepository);
   container.bind<JobEvents>(TYPES.JobEvents).to(JobEvents);
 
   registerJobs(container);
