@@ -183,7 +183,7 @@
       <div class="meta-row">
         <dt>Última execução</dt>
         <dd>
-          <span class="mono">{formatRelative(job.lastRun.startedAt)}</span>
+          <span class="mono">{formatRelative(job.lastRun.startedAt, now)}</span>
           {#if job.lastRun.durationMs !== null}
             <span class="tertiary mono">· {formatDuration(job.lastRun.durationMs)}</span>
           {/if}

@@ -19,16 +19,29 @@ export function formatDateTime(isoUtc: string): string {
   return `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
 }
 
+/**
+ * Tempo decorrido em formato amigável com segundos visíveis pra suportar
+ * countdown ao vivo (quando o caller passa `now` reativo):
+ *   < 1s    → "agora"
+ *   < 60s   → "Xs atrás"
+ *   < 60min → "Xmin Ys atrás"
+ *   < 24h   → "Xh Ymin atrás"
+ *   >= 24h  → "Xd Yh atrás"
+ */
 export function formatRelative(isoUtc: string, now: Date = new Date()): string {
   const diffMs = now.getTime() - new Date(isoUtc).getTime();
   const sec = Math.floor(diffMs / 1000);
+  if (sec < 1) return 'agora';
   if (sec < 60) return `${sec}s atrás`;
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min}min atrás`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h atrás`;
-  const day = Math.floor(hr / 24);
-  return `${day}d atrás`;
+  const totalMin = Math.floor(sec / 60);
+  const s = sec % 60;
+  const m = totalMin % 60;
+  const totalHr = Math.floor(totalMin / 60);
+  const h = totalHr % 24;
+  if (totalMin < 60) return `${m}min ${s}s atrás`;
+  if (totalHr < 24) return `${h}h ${m}min atrás`;
+  const d = Math.floor(totalHr / 24);
+  return `${d}d ${h}h atrás`;
 }
 
 export function formatDuration(ms: number): string {
