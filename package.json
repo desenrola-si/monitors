@@ -15,6 +15,7 @@
     "build:server": "tsc",
     "build:frontend": "vite build",
     "migrate": "tsx src/migrate.ts",
+    "prestart": "node dist/migrate.js",
     "start": "node dist/daemon.js",
     "start:cli": "node dist/cli.js",
     "start:daemon": "node dist/daemon.js"

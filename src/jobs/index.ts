@@ -3,6 +3,7 @@ import { Job } from '../lib/job.js';
 import { FrustrationMonitorJob } from './frustration-monitor.js';
 import { DailyReportsJob } from './daily-reports/job.js';
 import { HealthCheckJob } from './health-check/job.js';
+import { PortfolioReportJob } from './portfolio-report/job.js';
 
 /**
  * Registro central de jobs. Pra adicionar novo cron:
@@ -16,6 +17,7 @@ export const JOB_CLASSES: Array<new (...args: any[]) => Job> = [
   FrustrationMonitorJob,
   DailyReportsJob,
   HealthCheckJob,
+  PortfolioReportJob,
 ];
 
 export function registerJobs(container: Container): void {
