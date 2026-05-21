@@ -60,6 +60,14 @@ function formatPhone(raw: string): string {
   return raw;
 }
 
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  const min = Math.floor(ms / 60_000);
+  const sec = Math.floor((ms % 60_000) / 1000);
+  return `${min}min ${sec}s`;
+}
+
 /**
  * Monitor que detecta conversas Amilgás com sinal de frustração não escalada.
  *
@@ -97,14 +105,18 @@ export class FrustrationMonitorJob extends Job {
   async run(): Promise<void> {
     const log = this.logger.child({ job: this.name });
     const t0 = Date.now();
-    log.info(`Início do tick — tenant=${TENANT_NAME}`);
+    log.info(`Começando checagem da ${TENANT_NAME}`);
 
     const detected = await this.detectNew(log);
     const resolved = await this.reEvaluateOpen(log);
 
     const ms = Date.now() - t0;
+    const novos =
+      detected === 0 ? 'nenhum alerta novo' : `${detected} alerta(s) novo(s)`;
+    const fechados =
+      resolved === 0 ? 'nenhum resolvido' : `${resolved} resolvido(s)`;
     log.info(
-      `Tick concluído em ${ms}ms — ${detected} alerts novos, ${resolved} resolvidos`,
+      `Checagem concluída em ${formatDuration(ms)} — ${novos}, ${fechados}`,
     );
   }
 
@@ -112,9 +124,7 @@ export class FrustrationMonitorJob extends Job {
   private async detectNew(log: Logger): Promise<number> {
     const sinceUtc = new Date(Date.now() - 24 * 3600 * 1000);
     const handoffLookbackUtc = new Date(Date.now() - 7 * 24 * 3600 * 1000);
-    log.debug(
-      `Detectando sinais — janela ${sinceUtc.toISOString()} até agora, handoff lookback ${handoffLookbackUtc.toISOString()}`,
-    );
+    log.debug('Procurando sinais novos da última 24h');
 
     const rows = await this.db.query<FrustrationRow>(
       `
@@ -171,16 +181,18 @@ export class FrustrationMonitorJob extends Job {
     );
 
     if (rows.length === 0) {
-      log.info('Nenhum sinal ativo encontrado na janela de 24h');
+      log.info('Nenhum cliente sinalizou frustração nas últimas 24h');
       return 0;
     }
-    log.info(`${rows.length} sinal(is) ativo(s) detectado(s) na janela de 24h`);
+    log.info(
+      `${rows.length} ${rows.length === 1 ? 'cliente sinalizou' : 'clientes sinalizaram'} frustração nas últimas 24h`,
+    );
 
     let novosNoTick = 0;
     for (const row of rows) {
       const phone = formatPhone(row.phone);
       log.info(
-        `→ Cliente ${phone} sinalizou em ${row.first_signal_brt} BRT: "${row.signals.slice(0, 80)}..."`,
+        `→ ${phone} reclamou em ${row.first_signal_brt} BRT: "${row.signals.slice(0, 80)}..."`,
       );
 
       const fingerprint = `frust::${TENANT_ID}::${row.phone}::${row.first_signal_utc}`;
@@ -202,17 +214,19 @@ export class FrustrationMonitorJob extends Job {
       if (created) {
         novosNoTick++;
         log.warn(
-          `🚨 NOVO ALERT #${created.id} criado pra ${phone} — disparando notificação Google Chat`,
+          `🚨 Novo alerta criado pra ${phone} (#${created.id}) — avisando no Google Chat`,
         );
         await this.notifier.googleChat(this.formatNewAlertMessage(row));
-        log.info(`✅ Notificação enviada pra alert #${created.id}`);
+        log.info(`✅ Notificação do alerta #${created.id} enviada`);
       } else {
-        log.debug(`Alert pra ${phone} já existia (fingerprint match) — skip notify`);
+        log.debug(`${phone} já tinha alerta aberto, não notifico de novo`);
       }
     }
 
     if (novosNoTick === 0) {
-      log.info(`Todos ${rows.length} sinais já estavam tracked (sem alerts novos)`);
+      log.info(
+        `Todos os ${rows.length} já estavam sendo monitorados, nada novo`,
+      );
     }
     return novosNoTick;
   }
@@ -223,31 +237,33 @@ export class FrustrationMonitorJob extends Job {
       'frustration_not_escalated',
     );
     if (open.length === 0) {
-      log.debug('Nenhum alert open pra re-avaliar');
+      log.debug('Sem alertas em aberto pra acompanhar');
       return 0;
     }
-    log.info(`Re-avaliando ${open.length} alert(s) ainda em aberto`);
+    log.info(
+      `${open.length} ${open.length === 1 ? 'alerta em aberto sendo acompanhado' : 'alertas em aberto sendo acompanhados'}`,
+    );
 
     let resolvedCount = 0;
     for (const alert of open) {
       const payload = alert.payload as FrustrationPayload;
       const phone = payload.phone_formatted;
-      log.debug(`Checando alert #${alert.id} (${phone})`);
+      log.debug(`Verificando alerta #${alert.id} (${phone})`);
 
       const resolution = await this.checkResolution(alert);
       if (!resolution) {
-        log.debug(`Alert #${alert.id} ainda sem resolução`);
+        log.debug(`Alerta #${alert.id} ainda não foi resolvido`);
         continue;
       }
 
-      const emoji =
+      const desfecho =
         resolution.byStatusCode === 'resolved_by_ai'
-          ? '🤖✅'
+          ? '🤖 Resolvido pela IA'
           : resolution.byStatusCode === 'resolved_by_human'
-            ? '✅'
-            : '⏰';
+            ? '✅ Resolvido por humano'
+            : '⏰ Expirou sem resolução';
       log.info(
-        `${emoji} Alert #${alert.id} (${phone}) → ${resolution.byStatusCode}: ${resolution.note}`,
+        `${desfecho} — alerta #${alert.id} (${phone}): ${resolution.note}`,
       );
 
       await this.alertsRepo.markResolved(alert.id, resolution);
@@ -258,10 +274,12 @@ export class FrustrationMonitorJob extends Job {
     }
 
     if (resolvedCount === 0) {
-      log.info(`Nenhum dos ${open.length} alerts open resolveu neste tick`);
+      log.info('Nenhum dos alertas em aberto teve desfecho ainda');
     }
     return resolvedCount;
   }
+
+
 
   private async checkResolution(alert: AlertRow): Promise<{
     byStatusCode: 'resolved_by_ai' | 'resolved_by_human' | 'expired';
