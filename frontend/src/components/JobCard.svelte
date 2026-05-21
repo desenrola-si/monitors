@@ -221,6 +221,7 @@
     flex-direction: column;
     gap: var(--space-4);
     transition: border-color var(--duration-fast) var(--easing-default);
+    min-height: 320px;
   }
   .card:hover {
     border-color: var(--border-strong);
@@ -292,7 +293,6 @@
     font-size: 11px;
     padding: 2px 6px;
     border-radius: 3px;
-    margin-top: var(--space-1);
     align-self: flex-start;
   }
 
@@ -314,25 +314,26 @@
     margin: 0;
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
+    gap: var(--space-3);
     padding-top: var(--space-4);
     border-top: 1px solid var(--border-subtle);
   }
   .meta-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: 140px 1fr;
     gap: var(--space-3);
     align-items: baseline;
+    min-height: 22px;
   }
   .meta-row dt {
     font-size: 12px;
     color: var(--text-tertiary);
-    min-width: 110px;
-    flex-shrink: 0;
   }
   .meta-row dd {
     margin: 0;
     font-size: 13px;
     color: var(--text-primary);
+    min-width: 0;
   }
   .meta-row code {
     background: var(--bg-overlay);
@@ -454,7 +455,8 @@
   .actions {
     display: flex;
     gap: var(--space-2);
-    margin-top: var(--space-1);
+    margin-top: auto;
+    padding-top: var(--space-2);
     justify-content: flex-end;
   }
 
