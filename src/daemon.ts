@@ -16,6 +16,7 @@ import { buildHttpServer } from './http/server.js';
 import { JobRunSummary } from './http/routes/jobs.js';
 import { JobRunsRepository } from './lib/repositories/job-runs-repository.js';
 import { JobOverridesRepository } from './lib/repositories/job-overrides-repository.js';
+import { JobEvents } from './lib/job-events.js';
 import type { ScheduledTask } from 'node-cron';
 
 // eslint-disable-next-line no-console
@@ -42,6 +43,7 @@ const jobRunsRepo = container.get<JobRunsRepository>(TYPES.JobRunsRepository);
 const jobOverridesRepo = container.get<JobOverridesRepository>(
   TYPES.JobOverridesRepository,
 );
+const jobEvents = container.get<JobEvents>(TYPES.JobEvents);
 const jobs = getAllJobs(container);
 
 const running = new Set<string>();
@@ -89,6 +91,12 @@ async function runJob(job: Job, source: 'cron' | 'manual'): Promise<void> {
   }
 
   logger.info({ job: job.name, source }, 'Job iniciando');
+  jobEvents.emit({
+    type: 'job.started',
+    name: job.name,
+    startedAt,
+    source,
+  });
   try {
     await job.run();
     const durationMs = Date.now() - t0;
@@ -114,6 +122,15 @@ async function runJob(job: Job, source: 'cron' | 'manual'): Promise<void> {
           ),
         );
     }
+    jobEvents.emit({
+      type: 'job.finished',
+      name: job.name,
+      status: 'success',
+      startedAt,
+      finishedAt: finishedAt.toISOString(),
+      durationMs,
+      errorMessage: null,
+    });
     logger.info({ job: job.name, ms: durationMs }, 'Job concluído');
   } catch (err) {
     const durationMs = Date.now() - t0;
@@ -141,6 +158,15 @@ async function runJob(job: Job, source: 'cron' | 'manual'): Promise<void> {
           ),
         );
     }
+    jobEvents.emit({
+      type: 'job.finished',
+      name: job.name,
+      status: 'failed',
+      startedAt,
+      finishedAt: finishedAt.toISOString(),
+      durationMs,
+      errorMessage,
+    });
     logger.error(
       { job: job.name, err, ms: durationMs },
       'Job falhou (daemon continua)',
@@ -264,6 +290,13 @@ async function startHttpServer(): Promise<void> {
           await jobOverridesRepo.upsert(jobName, newSchedule, actor);
         }
         applySchedule(job, newSchedule);
+        jobEvents.emit({
+          type: 'job.scheduled',
+          name: jobName,
+          schedule: newSchedule,
+          scheduleDefault: job.schedule,
+          isOverride: newSchedule !== job.schedule,
+        });
         logger.info(
           { job: jobName, newSchedule, actor },
           'Schedule recarregado',

@@ -7,6 +7,9 @@ import { fileURLToPath } from 'node:url';
 import authPlugin from './plugins/auth.js';
 import authRoutes from './routes/auth.js';
 import jobsRoutes, { JobRunSummary } from './routes/jobs.js';
+import streamRoutes from './routes/stream.js';
+import { TYPES } from '../lib/types.js';
+import { JobEvents } from '../lib/job-events.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -56,6 +59,9 @@ export async function buildHttpServer(opts: HttpServerOpts): Promise<FastifyInst
       reloadSchedule: opts.reloadSchedule,
     }),
   );
+
+  const jobEvents = opts.container.get<JobEvents>(TYPES.JobEvents);
+  await fastify.register(streamRoutes({ jobEvents }));
 
   // Serve build do Svelte em prod. Path: frontend/dist relativo à raiz do repo.
   // Quando rodando do `dist/http/server.js`, raiz fica 3 níveis acima.
