@@ -15,7 +15,8 @@ export type AlertTypeCode =
   | 'reservation_duplicate'
   | 'reservation_outside_slot'
   | 'session_abandoned_midflow'
-  | 'ig_inbound_no_response';
+  | 'ig_inbound_no_response'
+  | 'workflow_debounce_dlq';
 
 export type AlertStatusCode =
   | 'open'

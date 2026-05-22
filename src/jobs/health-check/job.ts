@@ -17,7 +17,9 @@ import { MessageFailuresCheck } from './checks/message-failures.js';
 import { WorkflowFailuresCheck } from './checks/workflow-failures.js';
 import { Wa24hWindowCheck } from './checks/wa-24h-window.js';
 import { IgDmSilentDropCheck } from './checks/ig-dm-silent-drop.js';
-import { IgInboundNoResponseCheck } from './checks/ig-inbound-no-response.js';
+// IgInboundNoResponseCheck DESATIVADO — substituído pelo WorkflowDebounceDlqCheck
+// (sinal direto da DLQ, sem falso positivo). Arquivo mantido pra histórico.
+import { WorkflowDebounceDlqCheck } from './checks/workflow-debounce-dlq.js';
 import { CrmAutomationStepFailedCheck } from './checks/crm-automation-step-failed.js';
 import { CrmAutomationStepOverdueCheck } from './checks/crm-automation-step-overdue.js';
 import { ReservationDuplicateCheck } from './checks/reservation-duplicate.js';
@@ -76,7 +78,7 @@ export class HealthCheckJob extends Job {
       new WorkflowFailuresCheck(),
       new Wa24hWindowCheck(),
       new IgDmSilentDropCheck(),
-      new IgInboundNoResponseCheck(),
+      new WorkflowDebounceDlqCheck(),
       new CrmAutomationStepFailedCheck(),
       new CrmAutomationStepOverdueCheck(),
       new ReservationDuplicateCheck(),
