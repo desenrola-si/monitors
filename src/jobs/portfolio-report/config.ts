@@ -45,7 +45,10 @@ export const LLM = {
   // Mesmo modelo dos daily-reports — pt-BR fluente, custo baixo
   defaultModel: process.env.PORTFOLIO_DEEPSEEK_MODEL || 'deepseek-v4-flash',
   temperature: 0.45,
-  maxOutputTokens: 220, // narrativa overall é curta
+  // DeepSeek conta reasoning_tokens + completion no mesmo budget. Em tenants
+  // com muitos sinais o reasoning estourava 200 e zerava a narrativa
+  // (finish_reason=length). 1500 dá folga confortável; custo desprezível.
+  maxOutputTokens: 1500,
 } as const;
 
 export const WINDOW = {

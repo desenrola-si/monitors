@@ -24,7 +24,7 @@ export class ConversionDimension implements Dimension {
         (
           SELECT COUNT(*)
           FROM reservations
-          WHERE tenant_id::text = $1
+          WHERE "tenantId"::text = $1
             AND status = 'CONFIRMED'
             AND created_at >= $2
             AND created_at <  $3
@@ -50,7 +50,7 @@ export class ConversionDimension implements Dimension {
         (
           SELECT COUNT(*)
           FROM reservations
-          WHERE tenant_id::text = $1
+          WHERE "tenantId"::text = $1
             AND status = 'CONFIRMED'
             AND created_at >= $2
             AND created_at <  $3
