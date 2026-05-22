@@ -5,7 +5,12 @@ import { collectMetrics } from './metrics/collect.js';
 import { generateReport } from './llm.js';
 import { getTenantMemory } from './memory.js';
 import { REPORT_META_SYSTEM_PROMPT, buildUserPrompt } from './report-prompt.js';
+import {
+  REPORT_META_SYSTEM_PROMPT_HUMAN,
+  buildUserPromptHuman,
+} from './report-prompt-human.js';
 import { existsCompletedReport, saveReport } from './save.js';
+import type { CollectedMetrics } from './metrics/types.js';
 import {
   buildBannedPhrasesPromptSection,
   buildRetryWarning,
@@ -32,11 +37,12 @@ export async function runOnceForDate(
   opts: RunOnceOptions = {},
 ): Promise<RunOnceSummary> {
   const tenants = await resolveTenants(opts.tenantId);
+  const aiCount = tenants.filter((t) => t.mode === 'ai').length;
+  const humanCount = tenants.filter((t) => t.mode === 'human').length;
 
   logger.info(
-    `Ciclo iniciado: reportDate=${reportDate} tenants=${tenants.length} force=${
-      opts.force ? 'true' : 'false'
-    }`,
+    `Ciclo iniciado: reportDate=${reportDate} tenants=${tenants.length} ` +
+      `(ai=${aiCount}, humano=${humanCount}) force=${opts.force ? 'true' : 'false'}`,
   );
 
   const summary: RunOnceSummary = {
@@ -48,7 +54,7 @@ export async function runOnceForDate(
   };
 
   for (const tenant of tenants) {
-    const label = `${tenant.name ?? tenant.id} (${tenant.id})`;
+    const label = `${tenant.name ?? tenant.id} (${tenant.id}, mode=${tenant.mode})`;
 
     try {
       if (!opts.force) {
@@ -58,13 +64,6 @@ export async function runOnceForDate(
           summary.skipped += 1;
           continue;
         }
-      }
-
-      const inactiveReason = inactiveWorkflowReason(tenant);
-      if (inactiveReason) {
-        logger.info(`[skip] ${label} — ${inactiveReason}`);
-        summary.skipped += 1;
-        continue;
       }
 
       await generateOneReport(tenant, reportDate);
@@ -96,53 +95,30 @@ async function resolveTenants(
   if (tenantId) {
     const single = await getTenantById(tenantId);
     if (!single) {
-      throw new Error(`Tenant não encontrado ou inativo: ${tenantId}`);
+      throw new Error(`Tenant não encontrado ou sem canal ativo: ${tenantId}`);
     }
     return [single];
   }
   return listActiveTenants();
 }
 
-function inactiveWorkflowReason(tenant: ActiveTenant): string | null {
-  if (!tenant.workflowSlug) {
-    return 'sem workflow_slug ativo em nenhuma conta (whatsapp/instagram)';
-  }
-  if (tenant.workflowSlug.trim().toLowerCase().startsWith('todo')) {
-    return `workflow placeholder (${tenant.workflowSlug})`;
-  }
-  return null;
-}
-
 async function generateOneReport(
   tenant: ActiveTenant,
   reportDate: string,
 ): Promise<void> {
-  if (!tenant.workflowSlug) {
-    throw new Error(
-      `Tenant ${tenant.id} não tem workflow_slug ativo em nenhuma conta (whatsapp/instagram).`,
-    );
-  }
-  const prompt = await resolveTenantPrompt(tenant.workflowSlug);
-  if (!prompt) {
-    throw new Error(
-      `Workflow ${tenant.workflowSlug} ativo não encontrado ou sem step ai_processing com system_prompt.`,
-    );
-  }
-
   const [metrics, tenantMemory, bannedPhrases] = await Promise.all([
     collectMetrics(tenant, reportDate),
     getTenantMemory(tenant.id),
     loadBannedPhrases(tenant.id),
   ]);
 
-  const userPrompt = buildUserPrompt({
-    tenantSystemPrompt: prompt.systemPrompt,
-    tenantMemory,
+  const { systemPrompt, userPrompt } = await buildPrompts(
+    tenant,
     metrics,
-  });
-
+    tenantMemory,
+  );
   const systemPromptWithBans =
-    REPORT_META_SYSTEM_PROMPT + buildBannedPhrasesPromptSection(bannedPhrases);
+    systemPrompt + buildBannedPhrasesPromptSection(bannedPhrases);
 
   let llm = await generateReport({
     systemPrompt: systemPromptWithBans,
@@ -218,22 +194,68 @@ async function generateOneReport(
   });
 }
 
+/**
+ * Roteia construção de prompts por mode. AI usa o prompt operacional do bot
+ * + meta prompt da IA; humano usa o meta prompt humano sem buscar prompt do
+ * bot (não tem).
+ */
+async function buildPrompts(
+  tenant: ActiveTenant,
+  metrics: CollectedMetrics,
+  tenantMemory: string,
+): Promise<{ systemPrompt: string; userPrompt: string }> {
+  if (tenant.mode === 'human' && metrics.mode === 'human') {
+    return {
+      systemPrompt: REPORT_META_SYSTEM_PROMPT_HUMAN,
+      userPrompt: buildUserPromptHuman({ tenantMemory, metrics }),
+    };
+  }
+
+  if (tenant.mode === 'ai' && metrics.mode === 'ai') {
+    if (!tenant.workflowSlug) {
+      throw new Error(
+        `Tenant ${tenant.id} marcado como mode=ai mas sem workflow_slug.`,
+      );
+    }
+    const prompt = await resolveTenantPrompt(tenant.workflowSlug);
+    if (!prompt) {
+      throw new Error(
+        `Workflow ${tenant.workflowSlug} ativo não encontrado ou sem step ai_processing com system_prompt.`,
+      );
+    }
+    return {
+      systemPrompt: REPORT_META_SYSTEM_PROMPT,
+      userPrompt: buildUserPrompt({
+        tenantSystemPrompt: prompt.systemPrompt,
+        tenantMemory,
+        metrics,
+      }),
+    };
+  }
+
+  throw new Error(
+    `Inconsistência: tenant.mode=${tenant.mode} mas metrics.mode=${metrics.mode}`,
+  );
+}
+
 async function persistFailure(
   tenant: ActiveTenant,
   reportDate: string,
   errorMessage: string,
 ): Promise<void> {
-  // Persiste com metrics mínima — não tentamos re-coletar (já falhou no caminho normal)
+  // Metric mínima — não tentamos recoletar
   const minimalMetrics = {
+    mode: tenant.mode,
     reportDate,
     tenantId: tenant.id,
     tenantName: tenant.name,
     channels: {
       whatsapp: tenant.hasWhatsapp,
       instagram: tenant.hasInstagram,
+      whatsappNumber: tenant.whatsappNumber,
+      whatsappName: tenant.whatsappName,
+      instagramHandle: tenant.instagramHandle,
     },
-    desenrola: null,
-    workflow: null,
     collectedAt: new Date().toISOString(),
     error: errorMessage,
   } as unknown as Parameters<typeof saveReport>[0]['metrics'];

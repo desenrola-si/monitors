@@ -46,7 +46,42 @@ export interface WorkflowMetrics {
   guardViolations: number;
 }
 
-export interface CollectedMetrics {
+export interface HumanAttendanceMetrics {
+  messages: {
+    total: number;
+    user: number;
+    tenant: number;
+    template: number;
+    uniqueCustomers: number;
+    uniqueSessions: number;
+    firstActivityBrt: string | null;
+    lastActivityBrt: string | null;
+  };
+  peakHour: { hourBrt: number; count: number } | null;
+  responseTime: {
+    sessionsWithUserMsg: number;
+    sessionsWithTeamReply: number;
+    unansweredSessions: number;
+    medianMinutes: number | null;
+    p95Minutes: number | null;
+    under5min: number;
+    under30min: number;
+  };
+  unanswered: {
+    customersWithoutAnyReply: number;
+  };
+  team: {
+    activeAttendants: number;
+    distribution: Array<{
+      userId: string | null;
+      name: string | null;
+      email: string | null;
+      messagesSent: number;
+    }>;
+  };
+}
+
+export interface CollectedMetricsBase {
   reportDate: string;
   tenantId: string;
   tenantName: string | null;
@@ -57,8 +92,19 @@ export interface CollectedMetrics {
     whatsappName: string | null;
     instagramHandle: string | null;
   };
-  desenrola: DesenrolaMetrics;
-  workflow: WorkflowMetrics;
   conversationSamples: SampledConversations;
   collectedAt: string;
 }
+
+export interface CollectedMetricsAi extends CollectedMetricsBase {
+  mode: 'ai';
+  desenrola: DesenrolaMetrics;
+  workflow: WorkflowMetrics;
+}
+
+export interface CollectedMetricsHuman extends CollectedMetricsBase {
+  mode: 'human';
+  humanAttendance: HumanAttendanceMetrics;
+}
+
+export type CollectedMetrics = CollectedMetricsAi | CollectedMetricsHuman;
