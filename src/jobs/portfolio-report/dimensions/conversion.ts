@@ -78,8 +78,8 @@ export class ConversionDimension implements Dimension {
     if (sessBase < CONVERSION.minSessionsToScore && sessToday < CONVERSION.minSessionsToScore) {
       return {
         dimension: 'conversion',
-        currentValue: round2(rateToday * 100),
-        baselineValue: round2(rateBase * 100),
+        currentValue: this.round2(rateToday * 100),
+        baselineValue: this.round2(rateBase * 100),
         deltaPct: null,
         status: 'unknown',
         narrative:
@@ -102,8 +102,8 @@ export class ConversionDimension implements Dimension {
           ? 100
           : 0;
 
-    const status = classifyConversion(deltaPct, rateBase, rateToday);
-    const narrative = narrateConversion(
+    const status = this.classifyConversion(deltaPct, rateBase, rateToday);
+    const narrative = this.narrateConversion(
       reservToday,
       sessToday,
       rateToday,
@@ -114,55 +114,53 @@ export class ConversionDimension implements Dimension {
 
     return {
       dimension: 'conversion',
-      currentValue: round2(rateToday * 100),
-      baselineValue: round2(rateBase * 100),
-      deltaPct: round2(deltaPct),
+      currentValue: this.round2(rateToday * 100),
+      baselineValue: this.round2(rateBase * 100),
+      deltaPct: this.round2(deltaPct),
       status,
       narrative,
       rawData: {
         reservations_today: reservToday,
         sessions_today: sessToday,
-        rate_today_pct: round2(rateToday * 100),
+        rate_today_pct: this.round2(rateToday * 100),
         reservations_baseline: reservBase,
         sessions_baseline: sessBase,
-        baseline_rate_pct: round2(rateBase * 100),
+        baseline_rate_pct: this.round2(rateBase * 100),
       },
     };
   }
-}
 
-function classifyConversion(
-  deltaPct: number,
-  rateBase: number,
-  rateToday: number,
-): DimensionResult['status'] {
-  // Sem baseline mas com conversão hoje = positivo
-  if (rateBase === 0 && rateToday > 0) return 'positive';
-  // Sem dados ainda
-  if (rateBase === 0 && rateToday === 0) return 'neutral';
-  if (deltaPct <= -CONVERSION.criticalDropPct) return 'critical';
-  if (deltaPct <= -CONVERSION.attentionDropPct) return 'attention';
-  if (deltaPct >= CONVERSION.positiveGrowthPct) return 'positive';
-  return 'neutral';
-}
+  private classifyConversion(
+    deltaPct: number,
+    rateBase: number,
+    rateToday: number,
+  ): DimensionResult['status'] {
+    if (rateBase === 0 && rateToday > 0) return 'positive';
+    if (rateBase === 0 && rateToday === 0) return 'neutral';
+    if (deltaPct <= -CONVERSION.criticalDropPct) return 'critical';
+    if (deltaPct <= -CONVERSION.attentionDropPct) return 'attention';
+    if (deltaPct >= CONVERSION.positiveGrowthPct) return 'positive';
+    return 'neutral';
+  }
 
-function narrateConversion(
-  reservToday: number,
-  sessToday: number,
-  rateToday: number,
-  rateBase: number,
-  deltaPct: number,
-  status: DimensionResult['status'],
-): string {
-  const ratePctToday = round2(rateToday * 100);
-  const ratePctBase = round2(rateBase * 100);
-  const base = `${reservToday} reservas em ${sessToday} sessões (${ratePctToday}%) vs ${ratePctBase}% nos últimos 7d`;
-  if (status === 'critical') return `Conversão despencou — ${base}.`;
-  if (status === 'attention') return `Conversão em queda — ${base}.`;
-  if (status === 'positive') return `Conversão em alta — ${base}.`;
-  return `Conversão estável — ${base}.`;
-}
+  private narrateConversion(
+    reservToday: number,
+    sessToday: number,
+    rateToday: number,
+    rateBase: number,
+    deltaPct: number,
+    status: DimensionResult['status'],
+  ): string {
+    const ratePctToday = this.round2(rateToday * 100);
+    const ratePctBase = this.round2(rateBase * 100);
+    const base = `${reservToday} reservas em ${sessToday} sessões (${ratePctToday}%) vs ${ratePctBase}% nos últimos 7d`;
+    if (status === 'critical') return `Conversão despencou — ${base}.`;
+    if (status === 'attention') return `Conversão em queda — ${base}.`;
+    if (status === 'positive') return `Conversão em alta — ${base}.`;
+    return `Conversão estável — ${base}.`;
+  }
 
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
+  private round2(n: number): number {
+    return Math.round(n * 100) / 100;
+  }
 }
