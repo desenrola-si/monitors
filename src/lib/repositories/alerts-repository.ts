@@ -14,7 +14,8 @@ export type AlertTypeCode =
   | 'crm_automation_step_overdue'
   | 'reservation_duplicate'
   | 'reservation_outside_slot'
-  | 'session_abandoned_midflow';
+  | 'session_abandoned_midflow'
+  | 'ig_inbound_no_response';
 
 export type AlertStatusCode =
   | 'open'
