@@ -189,12 +189,14 @@
             class="num-input"
           />
           <select bind:value={freqUnit} class="select">
+            <option value="seconds">{freqEvery === 1 ? UNIT_LABELS_PT.seconds.singular : UNIT_LABELS_PT.seconds.plural}</option>
             <option value="minutes">{freqEvery === 1 ? UNIT_LABELS_PT.minutes.singular : UNIT_LABELS_PT.minutes.plural}</option>
             <option value="hours">{freqEvery === 1 ? UNIT_LABELS_PT.hours.singular : UNIT_LABELS_PT.hours.plural}</option>
             <option value="days">{freqEvery === 1 ? UNIT_LABELS_PT.days.singular : UNIT_LABELS_PT.days.plural}</option>
           </select>
         </div>
         <p class="hint">
+          {freqUnit === 'seconds' ? `Vai disparar a cada ${freqEvery}s — cuidado com cadências sub-segundo em jobs pesados` : ''}
           {freqUnit === 'minutes' ? `Vai disparar em :00, :${String(freqEvery).padStart(2, '0')}, :${String(freqEvery * 2).padStart(2, '0')}…` : ''}
           {freqUnit === 'hours' ? `Vai disparar todo dia a cada ${freqEvery}h, começando em 00:00` : ''}
           {freqUnit === 'days' ? `Vai disparar à meia-noite a cada ${freqEvery} dia(s)` : ''}
@@ -203,6 +205,12 @@
 
       <div class="presets">
         <span class="presets-label">Atalhos:</span>
+        <button class="preset-chip" onclick={() => { freqEvery = 2; freqUnit = 'seconds'; }}>
+          2 segundos
+        </button>
+        <button class="preset-chip" onclick={() => { freqEvery = 30; freqUnit = 'seconds'; }}>
+          30 segundos
+        </button>
         <button class="preset-chip" onclick={() => { freqEvery = 5; freqUnit = 'minutes'; }}>
           5 minutos
         </button>
@@ -290,7 +298,8 @@
           placeholder="*/5 * * * *"
         />
         <p class="hint">
-          Formato: <span class="mono">minuto hora dia mês dia-semana</span>.
+          Formato 5 campos: <span class="mono">minuto hora dia mês dia-semana</span>.
+          6 campos com segundos: <span class="mono">segundo minuto hora dia mês dia-semana</span>.
           <a href="https://crontab.guru/" target="_blank" rel="noopener noreferrer">
             crontab.guru ↗
           </a>

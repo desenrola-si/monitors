@@ -1,12 +1,15 @@
 /**
- * Conversões entre presets humanos e expressões cron 5-field.
- * Tenta sempre manter a UI longe de cron — usuário pensa em "a cada N min"
- * ou "todo dia às HH:MM", a lib converte.
+ * Conversões entre presets humanos e expressões cron.
+ * Tenta sempre manter a UI longe de cron — usuário pensa em "a cada N seg",
+ * "a cada N min" ou "todo dia às HH:MM", a lib converte.
+ *
+ * Suporta cron 5-field (padrão) e 6-field (com segundos no início), usado
+ * por `node-cron` quando precisamos de cadência sub-minuto.
  */
 
 export type ScheduleMode = 'frequency' | 'time-of-day' | 'advanced';
 
-export type FrequencyUnit = 'minutes' | 'hours' | 'days';
+export type FrequencyUnit = 'seconds' | 'minutes' | 'hours' | 'days';
 
 export interface FrequencyPreset {
   mode: 'frequency';
@@ -40,6 +43,12 @@ export function presetToCron(p: SchedulePreset): string {
 
   if (p.mode === 'frequency') {
     const n = Math.max(1, Math.floor(p.every));
+    if (p.unit === 'seconds') {
+      // 6-field cron: segundos no início. node-cron aceita.
+      if (n === 1) return '* * * * * *';
+      if (n >= 60) return `0 */${Math.floor(n / 60)} * * * *`;
+      return `*/${n} * * * * *`;
+    }
     if (p.unit === 'minutes') {
       if (n === 1) return '* * * * *';
       if (n >= 60) return `0 */${Math.floor(n / 60)} * * *`;
@@ -79,6 +88,22 @@ function normalizeWeekdays(wds: Weekday[]): Weekday[] {
 export function detectPreset(cron: string): SchedulePreset {
   const trimmed = cron.trim();
   const parts = trimmed.split(/\s+/);
+
+  // 6-field (segundos no início): só reconhece presets de "a cada N segundos"
+  if (parts.length === 6) {
+    const [sec, m, h, dom, mon, dow] = parts;
+    if (m === '*' && h === '*' && dom === '*' && mon === '*' && dow === '*') {
+      if (sec === '*') {
+        return { mode: 'frequency', every: 1, unit: 'seconds' };
+      }
+      const everySecMatch = sec?.match(/^\*\/(\d+)$/);
+      if (everySecMatch) {
+        return { mode: 'frequency', every: parseInt(everySecMatch[1]!, 10), unit: 'seconds' };
+      }
+    }
+    return { mode: 'advanced', cron: trimmed };
+  }
+
   if (parts.length !== 5) return { mode: 'advanced', cron: trimmed };
 
   const [m, h, dom, mon, dow] = parts;
@@ -164,6 +189,7 @@ function parseWeekdays(s: string): Weekday[] | null {
 // ────────────────────────────────────────────────────────────────────────
 
 export const UNIT_LABELS_PT: Record<FrequencyUnit, { singular: string; plural: string }> = {
+  seconds: { singular: 'segundo', plural: 'segundos' },
   minutes: { singular: 'minuto', plural: 'minutos' },
   hours: { singular: 'hora', plural: 'horas' },
   days: { singular: 'dia', plural: 'dias' },
