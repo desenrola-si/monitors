@@ -48,7 +48,7 @@ export class SessionAbandonedMidflowCheck implements Check {
         a.tenant_id,
         t.name AS tenant_name,
         COUNT(*)::text AS abandoned_count,
-        TO_CHAR(MIN(a.last_msg_at) AT TIME ZONE 'America/Sao_Paulo', 'DD/MM HH24:MI') AS oldest_last_user_msg_at
+        TO_CHAR((MIN(a.last_msg_at) AT TIME ZONE 'UTC') AT TIME ZONE 'America/Sao_Paulo', 'DD/MM HH24:MI') AS oldest_last_user_msg_at
       FROM abandoned a
       LEFT JOIN tenants t ON t.id::text = a.tenant_id
       GROUP BY a.tenant_id, t.name

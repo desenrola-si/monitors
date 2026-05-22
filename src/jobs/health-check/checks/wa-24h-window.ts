@@ -30,7 +30,7 @@ export class Wa24hWindowCheck implements Check {
         t.name AS tenant_name,
         COUNT(*)::text AS occurrences,
         COUNT(DISTINCT ml.request_id)::text AS distinct_recipients,
-        TO_CHAR(MAX(ml.receivad_at) AT TIME ZONE 'America/Sao_Paulo', 'DD/MM HH24:MI') AS last_at
+        TO_CHAR((MAX(ml.receivad_at) AT TIME ZONE 'UTC') AT TIME ZONE 'America/Sao_Paulo', 'DD/MM HH24:MI') AS last_at
       FROM message_logs ml
       LEFT JOIN tenants t ON t.id::text = ml.tenant_id
       WHERE ml.channel = 'WHATSAPP'

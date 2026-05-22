@@ -20,7 +20,7 @@ export class CrmAutomationStepOverdueCheck implements Check {
         ae.tenant_id,
         t.name AS tenant_name,
         COUNT(*)::text AS overdue_count,
-        TO_CHAR(MIN(se.scheduled_at) AT TIME ZONE 'America/Sao_Paulo', 'DD/MM HH24:MI') AS oldest_scheduled_at
+        TO_CHAR((MIN(se.scheduled_at) AT TIME ZONE 'UTC') AT TIME ZONE 'America/Sao_Paulo', 'DD/MM HH24:MI') AS oldest_scheduled_at
       FROM automation_step_executions se
       JOIN automation_enrollments ae ON ae.id = se.enrollment_id
       LEFT JOIN tenants t ON t.id::text = ae.tenant_id

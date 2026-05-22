@@ -37,7 +37,7 @@ export class WorkflowFailuresCheck implements Check {
             AND we2.created_at >= NOW() - INTERVAL '${WINDOW_MINUTES} minutes'
           ORDER BY we2.created_at DESC LIMIT 1
         ) AS last_error,
-        TO_CHAR(MAX(we.created_at) AT TIME ZONE 'America/Sao_Paulo', 'DD/MM HH24:MI') AS last_failure_at
+        TO_CHAR((MAX(we.created_at) AT TIME ZONE 'UTC') AT TIME ZONE 'America/Sao_Paulo', 'DD/MM HH24:MI') AS last_failure_at
       FROM workflow_executions we
       WHERE we.status = 'failed'
         AND we.created_at >= NOW() - INTERVAL '${WINDOW_MINUTES} minutes'

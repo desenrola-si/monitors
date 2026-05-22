@@ -29,7 +29,7 @@ export class MessageFailuresCheck implements Check {
         ml.tenant_id,
         t.name AS tenant_name,
         COUNT(*)::text AS failure_count,
-        TO_CHAR(MAX(ml.receivad_at) AT TIME ZONE 'America/Sao_Paulo', 'DD/MM HH24:MI') AS last_failure_at
+        TO_CHAR((MAX(ml.receivad_at) AT TIME ZONE 'UTC') AT TIME ZONE 'America/Sao_Paulo', 'DD/MM HH24:MI') AS last_failure_at
       FROM message_logs ml
       LEFT JOIN tenants t ON t.id::text = ml.tenant_id
       WHERE ml.origin = 'agent'

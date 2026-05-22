@@ -140,7 +140,7 @@ export class FrustrationMonitorJob extends Job {
       )
       SELECT f.request_id AS phone,
         TO_CHAR(f.first_signal, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS first_signal_utc,
-        TO_CHAR(f.first_signal AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD HH24:MI:SS') AS first_signal_brt,
+        TO_CHAR((f.first_signal AT TIME ZONE 'UTC') AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD HH24:MI:SS') AS first_signal_brt,
         array_to_string(f.signals, ' | ') AS signals
       FROM frust f
       WHERE NOT EXISTS (
@@ -297,7 +297,7 @@ export class FrustrationMonitorJob extends Job {
     }>(
       `
       SELECT
-        TO_CHAR(receivad_at AT TIME ZONE 'America/Sao_Paulo', 'DD/MM HH24:MI:SS') AS ts_brt,
+        TO_CHAR((receivad_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/Sao_Paulo', 'DD/MM HH24:MI:SS') AS ts_brt,
         origin,
         LEFT(message, 200) AS message
       FROM message_logs
@@ -327,7 +327,7 @@ export class FrustrationMonitorJob extends Job {
     }>(
       `
       SELECT
-        TO_CHAR(receivad_at AT TIME ZONE 'America/Sao_Paulo', 'DD/MM HH24:MI:SS') AS ts_brt,
+        TO_CHAR((receivad_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/Sao_Paulo', 'DD/MM HH24:MI:SS') AS ts_brt,
         LEFT(message, 200) AS message
       FROM message_logs
       WHERE tenant_id = $1

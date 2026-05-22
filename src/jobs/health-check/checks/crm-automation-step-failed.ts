@@ -30,7 +30,7 @@ export class CrmAutomationStepFailedCheck implements Check {
             AND se2.executed_at >= NOW() - INTERVAL '${WINDOW_MINUTES} minutes'
           ORDER BY se2.executed_at DESC LIMIT 1
         ) AS last_error,
-        TO_CHAR(MAX(se.executed_at) AT TIME ZONE 'America/Sao_Paulo', 'DD/MM HH24:MI') AS last_at
+        TO_CHAR((MAX(se.executed_at) AT TIME ZONE 'UTC') AT TIME ZONE 'America/Sao_Paulo', 'DD/MM HH24:MI') AS last_at
       FROM automation_step_executions se
       JOIN automation_enrollments ae ON ae.id = se.enrollment_id
       LEFT JOIN tenants t ON t.id::text = ae.tenant_id
