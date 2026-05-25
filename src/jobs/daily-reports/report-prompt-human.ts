@@ -20,9 +20,9 @@ O leitor é o cliente (ex: gerente comercial da empresa). O objetivo do relatór
 
 VOCÊ LÊ AS CONVERSAS — ISSO É LITERAL:
 Você é um analista que LÊ as conversas do dia entre clientes finais e a EQUIPE HUMANA do tenant. Você RECEBE conversas reais amostradas em 3 buckets:
-1. *Conversões* — sessões onde o cliente fechou (agendou, comprou, etc.)
-2. *Handoff humano* — sessões com participação ativa da equipe humana
-3. *Não-conversão* — sessões longas que terminaram sem fechamento (fricção/desistência)
+1. *Conversões* — atendimentos onde o cliente fechou (agendou, comprou, etc.)
+2. *Handoff humano* — atendimentos com participação ativa da equipe humana
+3. *Não-conversão* — atendimentos longos que terminaram sem fechamento (fricção/desistência)
 
 Em modo humano TODAS as respostas são da equipe — não há "IA" pra elogiar nem reclamar. O foco é qualidade do que o time entregou: rapidez, tom, capacidade de resolver, momento de virar o jogo.
 
@@ -35,11 +35,16 @@ DADOS DAS CONVERSAS:
 
 Seu trabalho NÃO é olhar estatística — é tirar leituras qualitativas LENDO as conversas: padrões de fechamento, objeções, momentos em que a equipe destravou venda, atendentes específicos que fizeram diferença, conversas onde demorou demais e o cliente sumiu. Cite trechos quando o insight vier deles.
 
+VOCABULÁRIO DO CLIENTE (CRÍTICO):
+- O que internamente chamamos de "service session" é, no relatório, *atendimento* — NUNCA "sessão". Cliente não conhece esse termo técnico e "sessão" soa robótico/genérico.
+- ❌ "3 sessões fecharam venda" / "uma das sessões" / "sessões longas"
+- ✅ "3 atendimentos fecharam venda" / "um dos atendimentos" / "atendimentos longos"
+
 USO DAS CONVERSAS REAIS — REGRAS:
-- Padrões observáveis em ≥2 sessões valem como "padrão do dia". 1 sessão isolada é exemplo, não tendência.
+- Padrões observáveis em ≥2 atendimentos valem como "padrão do dia". 1 atendimento isolado é exemplo, não tendência.
 - NÃO citar trechos literais grandes (> 20 palavras) — sintetizar.
-- NÃO mencionar IDs de sessão, números técnicos, nomes de tabela.
-- Quando referenciar uma conversa, use linguagem natural ("uma das conversas", "em 2 sessões observadas").
+- NÃO mencionar IDs de atendimento, números técnicos, nomes de tabela.
+- Quando referenciar uma conversa, use linguagem natural ("uma das conversas", "em 2 atendimentos observados").
 - Se conversas amostradas < 3 totais, TRATE como "dia de baixo volume" e baseie em métricas agregadas.
 
 ENERGIA E TOM:
@@ -202,21 +207,21 @@ function formatConversationSamples(samples: SampledConversations): string {
     samples.noConversion.length;
 
   if (totalCount === 0) {
-    return '_(Nenhuma conversa amostrada hoje — dia de volume insuficiente ou base sem sessões classificáveis.)_';
+    return '_(Nenhuma conversa amostrada hoje — dia de volume insuficiente ou base sem atendimentos classificáveis.)_';
   }
 
   const sections: string[] = [
     `Você recebe **${totalCount} conversas reais** amostradas em 3 buckets. Cada conversa tem o resumo (canal, total de mensagens, outcome) e até 50 mensagens em ordem cronológica.`,
     ``,
-    formatBucket('🟢 Conversões (sessão fechou com sucesso)', samples.conversion),
+    formatBucket('🟢 Conversões (atendimento fechou com sucesso)', samples.conversion),
     ``,
     formatBucket(
-      '🟡 Handoff humano (sessão com participação ativa da equipe)',
+      '🟡 Handoff humano (atendimento com participação ativa da equipe)',
       samples.handoff,
     ),
     ``,
     formatBucket(
-      '🔴 Não-conversão longa (sessão sem fechamento nem participação clara da equipe — sinal de fricção)',
+      '🔴 Não-conversão longa (atendimento sem fechamento nem participação clara da equipe — sinal de fricção)',
       samples.noConversion,
     ),
   ];
@@ -225,16 +230,16 @@ function formatConversationSamples(samples: SampledConversations): string {
 }
 
 function formatBucket(title: string, bucket: SampledConversation[]): string {
-  const lines: string[] = [`### ${title} — ${bucket.length} sessões`, ``];
+  const lines: string[] = [`### ${title} — ${bucket.length} atendimentos`, ``];
 
   if (bucket.length === 0) {
-    lines.push('_(nenhuma sessão neste bucket)_');
+    lines.push('_(nenhum atendimento neste bucket)_');
     return lines.join('\n');
   }
 
   for (const session of bucket) {
     lines.push(
-      `#### sessão · canal=${session.channel} · ${session.messageCount} mensagens · ${session.outcome}`,
+      `#### atendimento · canal=${session.channel} · ${session.messageCount} mensagens · ${session.outcome}`,
     );
     lines.push('```');
     for (const msg of session.messages) {
