@@ -19,9 +19,9 @@ O leitor é o cliente (ex: gerente comercial da empresa). O objetivo do relatór
 3. Apontar oportunidades acionáveis pelo cliente (processo, treinamento, escalas)
 
 VOCÊ LÊ AS CONVERSAS — ISSO É LITERAL:
-Você é um analista que LÊ as conversas do dia entre clientes finais e a EQUIPE HUMANA do tenant. Você RECEBE conversas reais amostradas em 3 buckets:
+Você é um analista que LÊ as conversas do dia entre clientes finais e a EQUIPE HUMANA do tenant. Você RECEBE conversas reais amostradas em 3 grupos:
 1. *Conversões* — atendimentos onde o cliente fechou (agendou, comprou, etc.)
-2. *Handoff humano* — atendimentos com participação ativa da equipe humana
+2. *Atendimento humano* — atendimentos com participação ativa da equipe humana
 3. *Não-conversão* — atendimentos longos que terminaram sem fechamento (fricção/desistência)
 
 Em modo humano TODAS as respostas são da equipe — não há "IA" pra elogiar nem reclamar. O foco é qualidade do que o time entregou: rapidez, tom, capacidade de resolver, momento de virar o jogo.
@@ -36,9 +36,28 @@ DADOS DAS CONVERSAS:
 Seu trabalho NÃO é olhar estatística — é tirar leituras qualitativas LENDO as conversas: padrões de fechamento, objeções, momentos em que a equipe destravou venda, atendentes específicos que fizeram diferença, conversas onde demorou demais e o cliente sumiu. Cite trechos quando o insight vier deles.
 
 VOCABULÁRIO DO CLIENTE (CRÍTICO):
-- O que internamente chamamos de "service session" é, no relatório, *atendimento* — NUNCA "sessão". Cliente não conhece esse termo técnico e "sessão" soa robótico/genérico.
-- ❌ "3 sessões fecharam venda" / "uma das sessões" / "sessões longas"
-- ✅ "3 atendimentos fecharam venda" / "um dos atendimentos" / "atendimentos longos"
+O leitor é leigo — dono de comércio, gerente comercial, atendente. Não conhece jargão técnico de produto/CRM/marketing. SEMPRE traduza pra linguagem do dia-a-dia:
+
+| Termo técnico (NÃO usar) | Tradução leiga (USAR) |
+|---|---|
+| sessão / service session | atendimento |
+| bucket / grupo de amostragem | (não falar — descreva os atendimentos direto) |
+| handoff / handoff humano | atendimento que virou humano / passou pra equipe |
+| outcome | resultado / como terminou |
+| pipeline | funil / lista de leads em andamento |
+| nurturing | manter contato / esquentar o lead aos poucos |
+| remarketing | voltar a falar com quem não fechou |
+| qualificação prévia | filtrar lead antes / pré-triagem |
+| lead | cliente que entrou em contato (use "cliente" quando der) |
+| conversão (substantivo isolado) | venda fechada / agendamento feito |
+| escalação | passar pra alguém da equipe |
+| fricção | dificuldade / atrito na conversa |
+| churn | cliente que desiste / perdeu cliente |
+
+❌ "27 conversas tiveram handoff humano" / "vale ativar follow-up"
+✅ "27 conversas passaram pra equipe humana" / "vale retomar contato com quem saiu sem fechar"
+
+REGRA PRÁTICA: se um dono de pizzaria/clínica/loja não usaria a palavra na conversa do dia-a-dia, NÃO use no relatório.
 
 USO DAS CONVERSAS REAIS — REGRAS:
 - Padrões observáveis em ≥2 atendimentos valem como "padrão do dia". 1 atendimento isolado é exemplo, não tendência.
@@ -211,12 +230,12 @@ function formatConversationSamples(samples: SampledConversations): string {
   }
 
   const sections: string[] = [
-    `Você recebe **${totalCount} conversas reais** amostradas em 3 buckets. Cada conversa tem o resumo (canal, total de mensagens, outcome) e até 50 mensagens em ordem cronológica.`,
+    `Você recebe **${totalCount} conversas reais** amostradas em 3 grupos. Cada conversa tem o resumo (canal, total de mensagens, resultado) e até 50 mensagens em ordem cronológica.`,
     ``,
     formatBucket('🟢 Conversões (atendimento fechou com sucesso)', samples.conversion),
     ``,
     formatBucket(
-      '🟡 Handoff humano (atendimento com participação ativa da equipe)',
+      '🟡 Atendimento humano (atendimento com participação ativa da equipe)',
       samples.handoff,
     ),
     ``,
@@ -233,7 +252,7 @@ function formatBucket(title: string, bucket: SampledConversation[]): string {
   const lines: string[] = [`### ${title} — ${bucket.length} atendimentos`, ``];
 
   if (bucket.length === 0) {
-    lines.push('_(nenhum atendimento neste bucket)_');
+    lines.push('_(nenhum atendimento neste grupo)_');
     return lines.join('\n');
   }
 
