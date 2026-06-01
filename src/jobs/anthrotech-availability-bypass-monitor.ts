@@ -122,7 +122,8 @@ export class AnthrotechAvailabilityBypassJob extends Job {
       Date.now() - (LOOKBACK_HOURS + AVAILABILITY_WINDOW_HOURS) * 3600 * 1000,
     );
 
-    const rows = await this.db.query<BypassRow>(
+    // 1) Mensagens candidatas no DB desenrola — IA confirmando agendamento
+    const candidates = await this.db.query<BypassRow>(
       `
       SELECT
         m.request_id,
@@ -136,14 +137,6 @@ export class AnthrotechAvailabilityBypassJob extends Job {
         AND m.receivad_at >= $2::timestamp
         AND m.message ~* $3
         AND m.message !~* $4
-        AND NOT EXISTS (
-          SELECT 1 FROM tool_execution_logs t
-          WHERE t.conversation_id = m.request_id
-            AND t.tenant_id = m.tenant_id
-            AND t.tool_name = 'get_anthrotech_availability'
-            AND t.created_at < m.receivad_at
-            AND t.created_at >= $5::timestamp
-        )
       ORDER BY m.receivad_at DESC
       `,
       [
@@ -151,18 +144,34 @@ export class AnthrotechAvailabilityBypassJob extends Job {
         sinceUtc.toISOString(),
         SCHEDULING_CONFIRMATION_REGEX,
         CANCELLATION_EXCLUSION_REGEX,
-        availabilityLookbackUtc.toISOString(),
       ],
     );
 
+    if (candidates.length === 0) {
+      log.info(`Nenhuma confirmação de agendamento nas últimas ${LOOKBACK_HOURS}h`);
+      return 0;
+    }
+
+    // 2) Pra cada candidata, verifica no workflow_processor se houve
+    //    get_anthrotech_availability na conversa antes da mensagem
+    const rows: BypassRow[] = [];
+    for (const c of candidates) {
+      const hadAvailability = await this.didCallAvailability(
+        c.request_id,
+        c.scheduled_msg_utc,
+        availabilityLookbackUtc.toISOString(),
+      );
+      if (!hadAvailability) rows.push(c);
+    }
+
     if (rows.length === 0) {
       log.info(
-        `Nenhum bypass detectado nas últimas ${LOOKBACK_HOURS}h`,
+        `${candidates.length} confirmação(ões) checada(s) — todas chamaram availability, OK`,
       );
       return 0;
     }
     log.warn(
-      `${rows.length} confirmação(ões) de agendamento sem availability check`,
+      `${rows.length}/${candidates.length} confirmação(ões) SEM availability check`,
     );
 
     let novosNoTick = 0;
@@ -197,6 +206,43 @@ export class AnthrotechAvailabilityBypassJob extends Job {
     }
 
     return novosNoTick;
+  }
+
+  /**
+   * Verifica no DB workflow_processor se a IA chamou
+   * get_anthrotech_availability nessa conversa nas últimas N horas antes
+   * da mensagem ofensiva. Tool calls ficam em
+   * execution_step_logs.metadata.tool_calls (array JSON) — NÃO na
+   * desenrola.tool_execution_logs (essa só guarda tools chamadas via
+   * HTTP direta do backend, não as do agente).
+   */
+  private async didCallAvailability(
+    requestId: string,
+    scheduledMsgUtc: string,
+    windowStartUtc: string,
+  ): Promise<boolean> {
+    const rows = await this.db.query<{ has_call: boolean }>(
+      `
+      SELECT EXISTS (
+        SELECT 1
+        FROM execution_step_logs esl
+        JOIN workflow_executions we ON we.id = esl.workflow_execution_id
+        WHERE we.tenant_id = $1
+          AND we.input->>'requesterId' = $2
+          AND we.started_at >= $3::timestamptz
+          AND we.started_at <= $4::timestamptz
+          AND esl.step_id = 'process-ai'
+          AND EXISTS (
+            SELECT 1
+            FROM jsonb_array_elements(esl.metadata->'tool_calls') tc
+            WHERE tc->>'tool' = 'get_anthrotech_availability'
+          )
+      ) AS has_call
+      `,
+      [TENANT_ID, requestId, windowStartUtc, scheduledMsgUtc],
+      'workflow_processor',
+    );
+    return rows[0]?.has_call === true;
   }
 
   private async expireOld(log: Logger): Promise<number> {
