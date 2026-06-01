@@ -17,7 +17,8 @@ export type AlertTypeCode =
   | 'session_abandoned_midflow'
   | 'ig_inbound_no_response'
   | 'workflow_debounce_dlq'
-  | 'anthrotech_scheduled_without_availability_check';
+  | 'anthrotech_scheduled_without_availability_check'
+  | 'customer_duplicate_wa_id_drift';
 
 export type AlertStatusCode =
   | 'open'

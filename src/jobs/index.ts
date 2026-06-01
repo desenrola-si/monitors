@@ -6,6 +6,7 @@ import { HealthCheckJob } from './health-check/job.js';
 import { LivreLaserMarkCustomersHumanJob } from './livre-laser-mark-customers-human.js';
 import { PortfolioReportJob } from './portfolio-report/job.js';
 import { AnthrotechAvailabilityBypassJob } from './anthrotech-availability-bypass-monitor.js';
+import { CustomerDuplicateWaIdDriftJob } from './customer-duplicate-wa-id-drift-monitor.js';
 
 /**
  * Registro central de jobs. Pra adicionar novo cron:
@@ -22,6 +23,7 @@ export const JOB_CLASSES: Array<new (...args: any[]) => Job> = [
   LivreLaserMarkCustomersHumanJob,
   PortfolioReportJob,
   AnthrotechAvailabilityBypassJob,
+  CustomerDuplicateWaIdDriftJob,
 ];
 
 export function registerJobs(container: Container): void {
