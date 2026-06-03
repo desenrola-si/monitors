@@ -12,7 +12,10 @@ const EXPIRY_HOURS = 6;
 type CheckKey =
   | 'customers_without_origin'
   | 'message_logs_without_origin_id'
-  | 'service_sessions_without_origin_id';
+  | 'service_sessions_without_origin_id'
+  | 'conversation_assignments_without_customer_id'
+  | 'conversation_read_by_without_customer_id'
+  | 'conversation_read_status_without_customer_id';
 
 interface GapRow {
   tenant_id: string;
@@ -59,6 +62,39 @@ const CHECKS: CheckSpec[] = [
       GROUP BY tenant_id
     `,
   },
+  {
+    key: 'conversation_assignments_without_customer_id',
+    label: 'conversation_assignments sem customer_id',
+    sql: `
+      SELECT tenant_id::text AS tenant_id, COUNT(*)::text AS n
+      FROM conversation_assignments
+      WHERE assigned_at >= NOW() - INTERVAL '${WINDOW_MINUTES} minutes'
+        AND customer_id IS NULL
+      GROUP BY tenant_id
+    `,
+  },
+  {
+    key: 'conversation_read_by_without_customer_id',
+    label: 'conversation_read_by sem customer_id',
+    sql: `
+      SELECT tenant_id::text AS tenant_id, COUNT(*)::text AS n
+      FROM conversation_read_by
+      WHERE read_at >= NOW() - INTERVAL '${WINDOW_MINUTES} minutes'
+        AND customer_id IS NULL
+      GROUP BY tenant_id
+    `,
+  },
+  {
+    key: 'conversation_read_status_without_customer_id',
+    label: 'conversation_read_status sem customer_id',
+    sql: `
+      SELECT tenant_id::text AS tenant_id, COUNT(*)::text AS n
+      FROM conversation_read_status
+      WHERE created_at >= NOW() - INTERVAL '${WINDOW_MINUTES} minutes'
+        AND customer_id IS NULL
+      GROUP BY tenant_id
+    `,
+  },
 ];
 
 function formatDuration(ms: number): string {
@@ -73,16 +109,19 @@ function formatDuration(ms: number): string {
  * Monitor: compliance da migração multi-contas.
  *
  * Contexto: roadmap em project_multi_account_roadmap. A migração exige que
- * customer/message_log/service_session sejam criados sempre com origin+origin_id
- * preenchidos. Se algum caller cria sem esses campos, customer pode atravessar
- * contas em tenant multi-WABA — bug original em project_customer_global_bug.
+ * customer/message_log/service_session sejam criados com origin+origin_id e
+ * que conversation_assignments/read_by/read_status sejam criados com
+ * customer_id. Se algum caller cria sem esses campos, customer pode
+ * atravessar contas em tenant multi-WABA — bug original em
+ * project_customer_global_bug.
  *
- * Detecção: a cada 5min, conta rows criadas na janela com origin/origin_id NULL,
- * agrupadas por tenant_id. Notifica por (check, tenant_id) com dedupe diário
- * via AlertsRepository.
+ * Detecção: a cada 5min, conta rows criadas na janela com a coluna de
+ * identificação de conta NULL, agrupadas por tenant_id. Notifica por
+ * (check, tenant_id) com dedupe horário via AlertsRepository.
  *
- * Critério pra apertar strict (remover fallback do CustomerLookupService):
- * monitor zerado por N dias consecutivos em todos os 3 checks.
+ * Critério pra apertar strict (remover fallback do CustomerLookupService e
+ * dropar request_id das tabelas conversation_*): monitor zerado por N dias
+ * consecutivos em todos os checks.
  */
 @injectable()
 export class CustomerMultiAccountComplianceJob extends Job {
@@ -190,13 +229,17 @@ export class CustomerMultiAccountComplianceJob extends Job {
     tenantId: string,
     count: number,
   ): string {
+    const missingColumn = check.key.endsWith('_without_customer_id')
+      ? 'customer_id'
+      : 'origin/origin_id';
+    const table = check.label.replace(/\s+sem\s+(customer_id|origin_id|origin\/origin_id)$/, '');
     return (
       `🚨 *Multi-conta compliance gap*\n` +
       `*Check:* ${check.label}\n` +
       `*Tenant:* \`${tenantId}\`\n` +
       `*Count nos últimos ${WINDOW_MINUTES}min:* ${count}\n\n` +
-      `*Diagnóstico:* algum caller criou ${check.label.replace('sem origin/origin_id', '').replace('sem origin_id', '').trim()} ` +
-      `sem propagar origin/origin_id. Customer pode atravessar contas em tenant multi-WABA. ` +
+      `*Diagnóstico:* algum caller criou ${table} sem propagar ${missingColumn}. ` +
+      `Customer pode atravessar contas em tenant multi-WABA. ` +
       `Investigar caller via stack trace ou git log do tenant ${tenantId}.\n\n` +
       `Ref: project_multi_account_roadmap.`
     );
