@@ -19,7 +19,10 @@ export type AlertTypeCode =
   | 'workflow_debounce_dlq'
   | 'anthrotech_scheduled_without_availability_check'
   | 'customer_duplicate_wa_id_drift'
-  | 'multi_account_compliance_gap';
+  | 'multi_account_compliance_gap'
+  | 'ai_rag_cot_leak'
+  | 'ai_rag_zero_chunks'
+  | 'ai_rag_early_human_escalation';
 
 export type AlertStatusCode =
   | 'open'
