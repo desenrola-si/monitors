@@ -26,6 +26,14 @@ interface CheckSpec {
   key: CheckKey;
   label: string;
   sql: string;
+  /**
+   * Quando definido, o check só roda se a coluna existir na tabela. Usado
+   * pelas checks da Onda 5 (customer_id em conversation_*), que dependem de
+   * migration aplicada no backend. Sem esse guard, o monitor quebra com
+   * "column does not exist" entre o deploy do monitor e a aplicação da
+   * migration em prod.
+   */
+  requiresColumn?: { table: string; column: string };
 }
 
 const CHECKS: CheckSpec[] = [
@@ -65,6 +73,7 @@ const CHECKS: CheckSpec[] = [
   {
     key: 'conversation_assignments_without_customer_id',
     label: 'conversation_assignments sem customer_id',
+    requiresColumn: { table: 'conversation_assignments', column: 'customer_id' },
     sql: `
       SELECT tenant_id::text AS tenant_id, COUNT(*)::text AS n
       FROM conversation_assignments
@@ -76,6 +85,7 @@ const CHECKS: CheckSpec[] = [
   {
     key: 'conversation_read_by_without_customer_id',
     label: 'conversation_read_by sem customer_id',
+    requiresColumn: { table: 'conversation_read_by', column: 'customer_id' },
     sql: `
       SELECT tenant_id::text AS tenant_id, COUNT(*)::text AS n
       FROM conversation_read_by
@@ -87,6 +97,7 @@ const CHECKS: CheckSpec[] = [
   {
     key: 'conversation_read_status_without_customer_id',
     label: 'conversation_read_status sem customer_id',
+    requiresColumn: { table: 'conversation_read_status', column: 'customer_id' },
     sql: `
       SELECT tenant_id::text AS tenant_id, COUNT(*)::text AS n
       FROM conversation_read_status
@@ -162,6 +173,20 @@ export class CustomerMultiAccountComplianceJob extends Job {
   }
 
   private async runCheck(check: CheckSpec, log: Logger): Promise<number> {
+    if (check.requiresColumn) {
+      const exists = await this.columnExists(
+        check.requiresColumn.table,
+        check.requiresColumn.column,
+      );
+      if (!exists) {
+        log.debug(
+          { check: check.key, ...check.requiresColumn },
+          'coluna ainda não existe — skipping (provavelmente migration não aplicada)',
+        );
+        return 0;
+      }
+    }
+
     const rows = await this.db.query<GapRow>(check.sql);
     if (rows.length === 0) {
       log.debug({ check: check.key }, 'sem gaps');
@@ -222,6 +247,22 @@ export class CustomerMultiAccountComplianceJob extends Job {
       log.info(`⏰ Gap alert #${alert.id} expirado`);
     }
     return expired;
+  }
+
+  private async columnExists(
+    table: string,
+    column: string,
+  ): Promise<boolean> {
+    const rows = await this.db.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1 FROM information_schema.columns
+         WHERE table_schema = 'public'
+           AND table_name = $1
+           AND column_name = $2
+       ) AS exists`,
+      [table, column],
+    );
+    return rows[0]?.exists === true;
   }
 
   private formatMessage(
