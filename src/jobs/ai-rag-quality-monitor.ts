@@ -9,7 +9,25 @@ import { AlertsRepository, AlertTypeCode } from '../lib/repositories/alerts-repo
 const WINDOW_MINUTES = 6;
 const EXPIRY_HOURS = 6;
 
-const TRACKED_SLUGS = ['sunomono-conversas-kb-pilot'];
+/**
+ * Workflows monitorados. Critério de inclusão: vazou CoT em prod nas últimas 4
+ * semanas OU é o pilot novo que ainda está validando arquitetura.
+ *
+ * Histórico de incidentes que motivaram cada slug:
+ *   - sunomono-conversas-kb-pilot: validação da migração KB+JSON+v4-flash
+ *   - sunomono-conversas: incidente 2026-06-02 "vou seguir o fluxo 14" (CoT leak)
+ *   - sunomono-comentarios + sunomono-whatsapp: mesma família, mesmo risco
+ *   - fornalle-validation-wf: 4 vazamentos detectados em 14 dias
+ *     (2026-05-22 2x, 2026-05-30, 2026-06-02). Expõe nomes de variáveis
+ *     internas — pior padrão de leak que Sunomono.
+ */
+const TRACKED_SLUGS = [
+  'sunomono-conversas-kb-pilot',
+  'sunomono-conversas',
+  'sunomono-comentarios',
+  'sunomono-whatsapp',
+  'fornalle-validation-wf',
+];
 
 const COT_PATTERNS = [
   'vou seguir',
