@@ -24,7 +24,6 @@ import { CrmAutomationStepFailedCheck } from './checks/crm-automation-step-faile
 import { CrmAutomationStepOverdueCheck } from './checks/crm-automation-step-overdue.js';
 import { ReservationDuplicateCheck } from './checks/reservation-duplicate.js';
 import { ReservationOutsideSlotCheck } from './checks/reservation-outside-slot.js';
-import { SessionAbandonedMidflowCheck } from './checks/session-abandoned-midflow.js';
 
 interface ProblemPayload extends Record<string, unknown> {
   severity: 'warning' | 'critical';
@@ -83,7 +82,6 @@ export class HealthCheckJob extends Job {
       new CrmAutomationStepOverdueCheck(),
       new ReservationDuplicateCheck(),
       new ReservationOutsideSlotCheck(),
-      new SessionAbandonedMidflowCheck(),
     ];
   }
 
