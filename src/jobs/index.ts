@@ -6,6 +6,7 @@ import { HealthCheckJob } from './health-check/job.js';
 import { LivreLaserMarkCustomersHumanJob } from './livre-laser-mark-customers-human.js';
 import { PortfolioReportJob } from './portfolio-report/job.js';
 import { AnthrotechAvailabilityBypassJob } from './anthrotech-availability-bypass-monitor.js';
+import { AnthrotechDateBruteforceJob } from './anthrotech-date-bruteforce-monitor.js';
 import { CustomerDuplicateWaIdDriftJob } from './customer-duplicate-wa-id-drift-monitor.js';
 import { CustomerMultiAccountComplianceJob } from './customer-multi-account-compliance-monitor.js';
 import { AiRagQualityMonitorJob } from './ai-rag-quality-monitor.js';
@@ -25,6 +26,7 @@ export const JOB_CLASSES: Array<new (...args: any[]) => Job> = [
   LivreLaserMarkCustomersHumanJob,
   PortfolioReportJob,
   AnthrotechAvailabilityBypassJob,
+  AnthrotechDateBruteforceJob,
   CustomerDuplicateWaIdDriftJob,
   CustomerMultiAccountComplianceJob,
   AiRagQualityMonitorJob,

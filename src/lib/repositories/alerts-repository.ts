@@ -19,6 +19,7 @@ export type AlertTypeCode =
   | 'workflow_debounce_dlq'
   | 'anthrotech_scheduled_without_availability_check'
   | 'anthrotech_date_weekday_mismatch'
+  | 'anthrotech_date_bruteforce'
   | 'customer_duplicate_wa_id_drift'
   | 'multi_account_compliance_gap'
   | 'ai_rag_cot_leak'
