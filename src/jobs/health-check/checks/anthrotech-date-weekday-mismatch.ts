@@ -28,6 +28,14 @@ interface Mismatch {
   actual: string; // dia-da-semana real da data
 }
 
+interface DateMatch {
+  index: number;
+  dd: number;
+  mm: number;
+  yyyy?: string;
+  raw: string;
+}
+
 interface Row {
   tenant_id: string;
   tenant_name: string | null;
@@ -127,39 +135,80 @@ export class AnthrotechDateWeekdayMismatchCheck implements Check {
     return results.filter((r) => (r.metricValue ?? 0) >= MIN_OCCURRENCES);
   }
 
-  /** Acha pares dia-da-semana + data adjacentes onde o dia-da-semana diverge. */
+  /**
+   * Acha pares dia-da-semana + data adjacentes onde o dia-da-semana diverge.
+   *
+   * Pareia cada DIA-DA-SEMANA com a DATA MAIS PRÓXIMA (não cada data com o
+   * weekday mais próximo). Em listas de opções tipo "amanhã 09/06, quarta
+   * 10/06, quinta 11/06", o "quarta" precisa colar no 10/06 (que ele rotula),
+   * não no 09/06 anterior — senão gera falso positivo. Cada weekday rotula a
+   * data que está logo ao lado dele.
+   */
   private findMismatches(message: string): Mismatch[] {
     const weekdays = this.collectWeekdays(message);
     if (weekdays.length === 0) return [];
 
+    const dates = this.collectDates(message);
+    if (dates.length === 0) return [];
+
     const out: Mismatch[] = [];
+    for (const w of weekdays) {
+      const wEnd = w.index + w.label.length;
+      let best: { date: DateMatch; gap: number; comma: boolean } | null = null;
+
+      for (const d of dates) {
+        const dEnd = d.index + d.raw.length;
+        // Gap (em chars) entre os dois tokens; sobreposição conta como 0.
+        const gap =
+          d.index >= wEnd
+            ? d.index - wEnd
+            : w.index >= dEnd
+              ? w.index - dEnd
+              : 0;
+        if (gap > ADJACENCY_CHARS) continue;
+
+        // Vírgula entre eles sinaliza separador de lista — desempata a favor
+        // do lado sem vírgula ("09/06, quarta 10/06" → quarta cola no 10/06).
+        const between =
+          d.index >= wEnd
+            ? message.slice(wEnd, d.index)
+            : message.slice(dEnd, w.index);
+        const comma = between.includes(',');
+
+        if (
+          best === null ||
+          gap < best.gap ||
+          (gap === best.gap && !comma && best.comma)
+        ) {
+          best = { date: d, gap, comma };
+        }
+      }
+
+      if (!best) continue;
+
+      const { dd, mm, yyyy, raw } = best.date;
+      const year = this.resolveYear(dd, mm, yyyy);
+      const actualDow = new Date(Date.UTC(year, mm - 1, dd)).getUTCDay();
+      if (Number.isNaN(actualDow)) continue;
+
+      if (actualDow !== w.dow) {
+        out.push({ said: w.label, date: raw, actual: dowLabel(actualDow) });
+      }
+    }
+    return out;
+  }
+
+  private collectDates(message: string): DateMatch[] {
+    const dates: DateMatch[] = [];
     DATE_RE.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = DATE_RE.exec(message)) !== null) {
       const dd = Number(m[1]);
       const mm = Number(m[2]);
-      const yyyy = m[3];
       if (mm < 1 || mm > 12 || dd < 1 || dd > 31) continue;
-
-      const dateIdx = m.index;
-      const near = weekdays.find(
-        (w) => Math.abs(w.index - dateIdx) <= ADJACENCY_CHARS,
-      );
-      if (!near) continue;
-
-      const year = this.resolveYear(dd, mm, yyyy);
-      const actualDow = new Date(Date.UTC(year, mm - 1, dd)).getUTCDay();
-      if (Number.isNaN(actualDow)) continue;
-
-      if (actualDow !== near.dow) {
-        out.push({
-          said: near.label,
-          date: m[0],
-          actual: dowLabel(actualDow),
-        });
-      }
+      dates.push({ index: m.index, dd, mm, yyyy: m[3], raw: m[0] });
     }
-    return out;
+    return dates;
   }
 
   private collectWeekdays(
