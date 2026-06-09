@@ -134,7 +134,7 @@ export class AnthrotechDateBruteforceJob extends Job {
         we.id::text AS execution_id,
         we.tenant_id,
         we.input->>'requesterId' AS requester_id,
-        TO_CHAR((we.started_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/Sao_Paulo', 'DD/MM HH24:MI') AS at_brt,
+        TO_CHAR(we.started_at AT TIME ZONE 'America/Sao_Paulo', 'DD/MM HH24:MI') AS at_brt,
         LEFT(esl.output->>'content', 300) AS preview,
         esl.metadata->'tool_calls' AS tool_calls
       FROM execution_step_logs esl
