@@ -22,7 +22,14 @@ interface CandidateRow {
 
 interface ToolCall {
   tool?: string;
-  args?: { data?: string } | null;
+  args?: {
+    data?: string;
+    cpf_cnpj?: unknown;
+    cep?: unknown;
+    numero?: unknown;
+    complemento?: unknown;
+    cpf?: unknown;
+  } | null;
   result?: { success?: boolean; error?: unknown; data?: { codigo?: string } } | null;
   error?: unknown;
 }
@@ -197,9 +204,13 @@ export class AnthrotechDateBruteforceJob extends Job {
   }
 
   /**
-   * Retorna o brute-force quando o turno tentou ≥2 datas DISTINTAS de
-   * create e ao menos uma teve sucesso. Datas iguais (retry do mesmo dia
-   * após erro transitório) NÃO contam.
+   * Retorna o brute-force quando UM MESMO alvo de agendamento (endereço/CPF)
+   * teve ≥2 datas DISTINTAS de create e ao menos uma com sucesso. Datas iguais
+   * (retry do mesmo dia após erro transitório) NÃO contam.
+   *
+   * O escopo por alvo evita o falso positivo de multi-endereço: um cliente
+   * pedindo vistorias em 2 endereços diferentes em datas diferentes é legítimo
+   * (incidente Marcela 09/06), não brute-force.
    */
   private analyze(toolCalls: ToolCall[] | null): Bruteforce | null {
     if (!Array.isArray(toolCalls)) return null;
@@ -209,23 +220,45 @@ export class AnthrotechDateBruteforceJob extends Job {
     );
     if (creates.length < 2) return null;
 
-    const triedDates = [
-      ...new Set(
-        creates
-          .map((tc) => tc.args?.data)
-          .filter((d): d is string => typeof d === 'string' && d.length > 0),
-      ),
-    ];
-    if (triedDates.length < 2) return null;
+    const byTarget = new Map<string, ToolCall[]>();
+    for (const tc of creates) {
+      const key = `${tc.tool}::${this.targetKey(tc)}`;
+      const group = byTarget.get(key);
+      if (group) group.push(tc);
+      else byTarget.set(key, [tc]);
+    }
 
-    const booked = creates.find(isSuccess);
-    if (!booked) return null;
+    for (const group of byTarget.values()) {
+      const triedDates = [
+        ...new Set(
+          group
+            .map((tc) => tc.args?.data)
+            .filter((d): d is string => typeof d === 'string' && d.length > 0),
+        ),
+      ];
+      if (triedDates.length < 2) continue;
 
-    return {
-      triedDates,
-      bookedDate: booked.args?.data ?? null,
-      bookedCodigo: booked.result?.data?.codigo ?? null,
-    };
+      const booked = group.find(isSuccess);
+      if (!booked) continue;
+
+      return {
+        triedDates,
+        bookedDate: booked.args?.data ?? null,
+        bookedCodigo: booked.result?.data?.codigo ?? null,
+      };
+    }
+
+    return null;
+  }
+
+  private targetKey(tc: ToolCall): string {
+    const a = tc.args ?? {};
+    const digits = (v: unknown) => (v == null ? '' : String(v).replace(/\D/g, ''));
+    const norm = (v: unknown) => (v == null ? '' : String(v).trim().toLowerCase());
+    if (tc.tool === 'create_anthrotech_reinspection') {
+      return `reinspection:${digits(a.cpf)}`;
+    }
+    return `work_order:${digits(a.cpf_cnpj)}|${digits(a.cep)}|${norm(a.numero)}|${norm(a.complemento)}`;
   }
 
   private async expireOld(log: Logger): Promise<number> {
