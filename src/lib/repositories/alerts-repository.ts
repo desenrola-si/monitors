@@ -18,6 +18,7 @@ export type AlertTypeCode =
   | 'ig_inbound_no_response'
   | 'workflow_debounce_dlq'
   | 'anthrotech_scheduled_without_availability_check'
+  | 'anthrotech_date_weekday_mismatch'
   | 'customer_duplicate_wa_id_drift'
   | 'multi_account_compliance_gap'
   | 'ai_rag_cot_leak'
