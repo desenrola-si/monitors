@@ -45,13 +45,19 @@ interface Row {
 }
 
 /**
- * Detecta mensagens da operação (IA/atendente/template) que citam um
+ * Detecta mensagens GERADAS POR MÁQUINA (IA/template) que citam um
  * dia-da-semana que NÃO corresponde à data informada na mesma frase —
  * ex.: "sexta-feira, 06/06" quando 06/06 é sábado.
  *
  * É o sinal observável e auto-contido do bug de geração de data
  * (a percepção de "data agendada ≠ combinada" do cliente). Não depende
  * de fonte externa nem de comparar duas datas armazenadas.
+ *
+ * Só considera origem 'agent' (IA) e 'template'. Mensagens 'tenant' são
+ * digitadas por atendente humano — typo de dia-da-semana ali é erro humano
+ * (em geral auto-corrigido na sequência), não bug de código, e a recomendação
+ * "checar geração de data nos templates/IA" não se aplica. Tenant sem IA ativa
+ * simplesmente não produz origem 'agent', então nunca dispara por engano.
  *
  * Janela de 24h: o alerta persiste enquanto houver mensagem ruim recente
  * e auto-resolve quando ela envelhece.
@@ -73,7 +79,7 @@ export class AnthrotechDateWeekdayMismatchCheck implements Check {
         TO_CHAR((ml.receivad_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/Sao_Paulo', 'DD/MM HH24:MI') AS at_brt
       FROM message_logs ml
       LEFT JOIN tenants t ON t.id::text = ml.tenant_id
-      WHERE ml.origin IN ('agent', 'tenant', 'template')
+      WHERE ml.origin IN ('agent', 'template')
         AND ml.receivad_at >= NOW() - INTERVAL '${WINDOW_HOURS} hours'
         AND ml.message ~* '(domingo|segunda|ter[çc]a|quarta|quinta|sexta|s[áa]bado)'
         AND ml.message ~ '[0-9]{1,2}/[0-9]{1,2}'
