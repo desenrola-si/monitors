@@ -24,7 +24,8 @@ export type AlertTypeCode =
   | 'multi_account_compliance_gap'
   | 'ai_rag_cot_leak'
   | 'ai_rag_zero_chunks'
-  | 'ai_rag_early_human_escalation';
+  | 'ai_rag_early_human_escalation'
+  | 'duplicate_outbound_burst';
 
 export type AlertStatusCode =
   | 'open'
