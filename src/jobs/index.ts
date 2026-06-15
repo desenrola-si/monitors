@@ -10,6 +10,7 @@ import { AnthrotechDateBruteforceJob } from './anthrotech-date-bruteforce-monito
 import { CustomerDuplicateWaIdDriftJob } from './customer-duplicate-wa-id-drift-monitor.js';
 import { CustomerMultiAccountComplianceJob } from './customer-multi-account-compliance-monitor.js';
 import { AiRagQualityMonitorJob } from './ai-rag-quality-monitor.js';
+import { DuplicateSendMonitorJob } from './duplicate-send-monitor.js';
 
 /**
  * Registro central de jobs. Pra adicionar novo cron:
@@ -30,6 +31,7 @@ export const JOB_CLASSES: Array<new (...args: any[]) => Job> = [
   CustomerDuplicateWaIdDriftJob,
   CustomerMultiAccountComplianceJob,
   AiRagQualityMonitorJob,
+  DuplicateSendMonitorJob,
 ];
 
 export function registerJobs(container: Container): void {
