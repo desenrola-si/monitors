@@ -61,8 +61,10 @@ function formatDuration(ms: number): string {
  * com requester_id B (formato diferente). Mesma pessoa, duas linhas.
  *
  * Detecção: customer novo (pós SINCE_UTC_HARDCODED) cujo requester_id
- * difere de outro customer do MESMO tenant APENAS pelo 9º dígito
- * (DDI 55 + DDD igual + últimos 8 dígitos do número igual).
+ * difere de outro customer da MESMA conta (mesmo tenant + origin +
+ * origin_id) APENAS pelo 9º dígito (DDI 55 + DDD igual + últimos 8
+ * dígitos do número igual). Telefone igual em contas distintas é
+ * multi-conta legítimo, não duplicata — por isso não alerta.
  */
 @injectable()
 export class CustomerDuplicateWaIdDriftJob extends Job {
@@ -123,6 +125,11 @@ export class CustomerDuplicateWaIdDriftJob extends Job {
         AND c2.id <> c1.id
         AND c2.created_at < c1.created_at
         AND c1.requester_id <> c2.requester_id
+        -- mesma conta: telefone igual em contas distintas é multi-conta,
+        -- não duplicata (1 customer por conta é o esperado e o índice
+        -- único customers_tenant_canonphone_origin_uq garante)
+        AND c1.origin IS NOT DISTINCT FROM c2.origin
+        AND c1.origin_id IS NOT DISTINCT FROM c2.origin_id
         -- DDI + DDD batem
         AND LEFT(c1.requester_id, 4) = LEFT(c2.requester_id, 4)
         -- últimos 8 dígitos batem (número sem 9º)
@@ -211,14 +218,14 @@ export class CustomerDuplicateWaIdDriftJob extends Job {
     const newPhone = formatPhone(row.new_requester_id);
     const oldPhone = formatPhone(row.old_requester_id);
     return (
-      `🚨 *Customer duplicado por drift do 9º dígito (PR #571)*\n` +
+      `🚨 *Customer duplicado por drift do 9º dígito (mesma conta)*\n` +
       `*Tenant:* \`${row.tenant_id}\`\n` +
       `*Customer EXISTENTE:* ${oldPhone} (\`${row.old_requester_id}\`) — ${row.old_name || '(sem nome)'}\n` +
       `*Customer NOVO:* ${newPhone} (\`${row.new_requester_id}\`) — ${row.new_name || '(sem nome)'}\n` +
       `*Diferença:* ${diffKind === 'has_9th_digit' ? 'novo TEM 9º dígito (antigo NÃO)' : 'novo NÃO tem 9º dígito (antigo TEM)'}\n\n` +
-      `*Diagnóstico:* ⚠️ Mesma pessoa pode ter duas linhas em customers ` +
-      `após mudança de chave wa_id. Considerar consolidar ou fazer rollback ` +
-      `do PR #571 se padrão se repetir.\n\n` +
+      `*Diagnóstico:* ⚠️ Duas linhas em customers na MESMA conta diferindo ` +
+      `só pelo 9º dígito — provável duplicata por drift de chave wa_id. ` +
+      `Consolidar no customer mais antigo.\n\n` +
       `Ver conversa nova: https://app.desenrolasi.com.br/conversas/${row.new_requester_id}?tenantId=${row.tenant_id}\n` +
       `Ver conversa antiga: https://app.desenrolasi.com.br/conversas/${row.old_requester_id}?tenantId=${row.tenant_id}`
     );
