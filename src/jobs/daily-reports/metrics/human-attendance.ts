@@ -167,7 +167,7 @@ export async function collectHumanAttendanceMetrics(
           WHERE r.tenant_id = $1
             AND r.request_id = um.request_id
             AND r.origin IN ('tenant', 'agent', 'template')
-            AND r.receivad_at >= um.receivad_at
+            AND r.receivad_at >= ${r.start}
             AND r.receivad_at <  ${r.end}
         )
     `,
