@@ -9,8 +9,12 @@ import { AlertsRepository } from '../lib/repositories/alerts-repository.js';
 /** Tenant da Fornalle (slug `fornalle`). */
 const FORNALLE_TENANT_ID = 'cmbo4zqb10000mcdpjjkgjllt';
 
-/** Janela analisada a cada tick. */
-const WINDOW_HOURS = 24;
+/**
+ * Janela analisada a cada tick. 48h porque o volume da Fornalle é ~15
+ * respostas simples/dia — uma janela de 24h fica abaixo de MIN_SAMPLE na
+ * maioria dos dias e o monitor pularia. 48h dá amostra ~30, estável.
+ */
+const WINDOW_HOURS = 48;
 
 /**
  * Teto de caracteres de uma resposta "simples". Alinhado à regra inserida no
