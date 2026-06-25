@@ -25,7 +25,8 @@ export type AlertTypeCode =
   | 'ai_rag_cot_leak'
   | 'ai_rag_zero_chunks'
   | 'ai_rag_early_human_escalation'
-  | 'duplicate_outbound_burst';
+  | 'duplicate_outbound_burst'
+  | 'fornalle_verbose_replies';
 
 export type AlertStatusCode =
   | 'open'

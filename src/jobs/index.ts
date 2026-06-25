@@ -11,6 +11,7 @@ import { CustomerDuplicateWaIdDriftJob } from './customer-duplicate-wa-id-drift-
 import { CustomerMultiAccountComplianceJob } from './customer-multi-account-compliance-monitor.js';
 import { AiRagQualityMonitorJob } from './ai-rag-quality-monitor.js';
 import { DuplicateSendMonitorJob } from './duplicate-send-monitor.js';
+import { FornalleVerboseRepliesMonitorJob } from './fornalle-verbose-replies-monitor.js';
 
 /**
  * Registro central de jobs. Pra adicionar novo cron:
@@ -32,6 +33,7 @@ export const JOB_CLASSES: Array<new (...args: any[]) => Job> = [
   CustomerMultiAccountComplianceJob,
   AiRagQualityMonitorJob,
   DuplicateSendMonitorJob,
+  FornalleVerboseRepliesMonitorJob,
 ];
 
 export function registerJobs(container: Container): void {
