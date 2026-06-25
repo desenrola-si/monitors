@@ -108,11 +108,22 @@ export interface WorkflowCost {
   unpricedCalls: number;
 }
 
+export interface ModelCost {
+  provider: string | null;
+  model: string | null;
+  priced: boolean;
+  calls: number;
+  tokens: CostTokens;
+  usd: number;
+  brl: number;
+}
+
 export interface CostBreakdown {
   period: { from: string; to: string };
   total: { calls: number; tokens: CostTokens; usd: number; brl: number; unpricedCalls: number };
   byClient: ClientCost[];
   byWorkflow: WorkflowCost[];
+  byModel: ModelCost[];
 }
 
 export const costsApi = {

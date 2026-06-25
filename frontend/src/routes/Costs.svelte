@@ -11,7 +11,7 @@
   let data = $state<CostBreakdown | null>(null);
   let loading = $state(true);
   let error = $state<string | null>(null);
-  let tab = $state<'client' | 'workflow'>('client');
+  let tab = $state<'client' | 'workflow' | 'model'>('client');
 
   function isoDaysAgo(days: number): string {
     const d = new Date();
@@ -113,12 +113,15 @@
       <button class="tab" class:active={tab === 'workflow'} onclick={() => (tab = 'workflow')}>
         Por workflow
       </button>
+      <button class="tab" class:active={tab === 'model'} onclick={() => (tab = 'model')}>
+        Por modelo
+      </button>
     </div>
 
     <table class="grid-table">
       <thead>
         <tr>
-          <th>{tab === 'client' ? 'Cliente' : 'Workflow'}</th>
+          <th>{tab === 'client' ? 'Cliente' : tab === 'workflow' ? 'Workflow' : 'Provedor / Modelo'}</th>
           <th class="num">Chamadas</th>
           <th class="num">Cache hit</th>
           <th class="num">USD</th>
@@ -139,7 +142,7 @@
           {#if data.byClient.length === 0}
             <tr><td colspan="5" class="empty">Sem custo no período.</td></tr>
           {/if}
-        {:else}
+        {:else if tab === 'workflow'}
           {#each data.byWorkflow as row (row.workflowDefinitionId ?? row.tenantId)}
             <tr>
               <td>
@@ -153,6 +156,25 @@
             </tr>
           {/each}
           {#if data.byWorkflow.length === 0}
+            <tr><td colspan="5" class="empty">Sem custo no período.</td></tr>
+          {/if}
+        {:else}
+          {#each data.byModel as row (`${row.provider}|${row.model}`)}
+            <tr>
+              <td>
+                <span class="row-name">
+                  {row.model ?? '(desconhecido)'}
+                  {#if !row.priced}<span class="badge-unpriced">sem preço</span>{/if}
+                </span>
+                {#if row.provider}<span class="row-sub mono">{row.provider}</span>{/if}
+              </td>
+              <td class="num">{num(row.calls)}</td>
+              <td class="num">{cacheHit(row.tokens)}</td>
+              <td class="num strong">{row.priced ? usd(row.usd) : '—'}</td>
+              <td class="num mono">{row.priced ? brl(row.brl) : '—'}</td>
+            </tr>
+          {/each}
+          {#if data.byModel.length === 0}
             <tr><td colspan="5" class="empty">Sem custo no período.</td></tr>
           {/if}
         {/if}
@@ -308,6 +330,17 @@
     font-size: 11px;
     color: var(--text-tertiary);
     margin-top: 2px;
+  }
+  .badge-unpriced {
+    display: inline-block;
+    margin-left: var(--space-2);
+    padding: 1px 6px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-warning, #d9a441);
+    border: 1px solid var(--color-warning, #d9a441);
+    border-radius: var(--radius-sm);
   }
   .empty {
     text-align: center;

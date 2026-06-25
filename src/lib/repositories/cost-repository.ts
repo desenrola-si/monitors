@@ -41,11 +41,22 @@ export interface CostTotals {
   unpricedCalls: number;
 }
 
+export interface ModelCost {
+  provider: string | null;
+  model: string | null;
+  priced: boolean;
+  calls: number;
+  tokens: CostTokens;
+  usd: number;
+  brl: number;
+}
+
 export interface CostBreakdown {
   period: { from: string; to: string };
   total: CostTotals;
   byClient: ClientCost[];
   byWorkflow: WorkflowCost[];
+  byModel: ModelCost[];
 }
 
 interface AggRow {
@@ -53,6 +64,7 @@ interface AggRow {
   workflow_definition_id: string | null;
   workflow_name: string | null;
   workflow_slug: string | null;
+  provider: string | null;
   model: string | null;
   calls: string;
   prompt: string;
@@ -72,6 +84,7 @@ export class CostRepository {
         e.workflow_definition_id::text                      AS workflow_definition_id,
         d.name                                              AS workflow_name,
         d.slug                                              AS workflow_slug,
+        s.metadata->>'provider'                             AS provider,
         s.metadata->>'model'                                AS model,
         count(*)                                            AS calls,
         sum((s.metadata->'usage'->>'promptTokens')::numeric)               AS prompt,
@@ -84,7 +97,7 @@ export class CostRepository {
         AND s.metadata->'usage'->>'promptTokens' IS NOT NULL
         AND e.started_at >= $1::date
         AND e.started_at <  ($2::date + interval '1 day')
-      GROUP BY 1, 2, 3, 4, 5
+      GROUP BY 1, 2, 3, 4, 5, 6
       `,
       [from, to],
       'workflow_processor',
@@ -96,6 +109,7 @@ export class CostRepository {
 
     const byWorkflow = new Map<string, WorkflowCost>();
     const byClient = new Map<string, ClientCost>();
+    const byModel = new Map<string, ModelCost>();
     const total: CostTotals = { calls: 0, tokens: zeroTokens(), usd: 0, brl: 0, unpricedCalls: 0 };
 
     for (const row of rows) {
@@ -152,6 +166,24 @@ export class CostRepository {
         });
       }
 
+      const modelKey = `${row.provider ?? '?'}|${row.model ?? '?'}`;
+      const model = byModel.get(modelKey);
+      if (model) {
+        addTokens(model.tokens, tokens);
+        model.calls += calls;
+        model.usd += usd;
+      } else {
+        byModel.set(modelKey, {
+          provider: row.provider,
+          model: row.model,
+          priced: isModelPriced(row.model),
+          calls,
+          tokens: { ...tokens },
+          usd,
+          brl: 0,
+        });
+      }
+
       addTokens(total.tokens, tokens);
       total.calls += calls;
       total.usd += usd;
@@ -163,6 +195,7 @@ export class CostRepository {
       total: withBrl(total),
       byClient: [...byClient.values()].map(withBrl).sort((a, b) => b.usd - a.usd),
       byWorkflow: [...byWorkflow.values()].map(withBrl).sort((a, b) => b.usd - a.usd),
+      byModel: [...byModel.values()].map(withBrl).sort((a, b) => b.usd - a.usd),
     };
   }
 
