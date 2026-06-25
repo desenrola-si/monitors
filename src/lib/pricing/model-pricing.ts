@@ -15,6 +15,7 @@ const PER_MILLION = 1_000_000;
 const PRICING: Record<string, ModelPricing> = {
   'deepseek-v4-flash': { inputCacheMiss: 0.14, inputCacheHit: 0.0028, output: 0.28 },
   'deepseek-v4-pro': { inputCacheMiss: 0.435, inputCacheHit: 0.003625, output: 0.87 },
+  'gpt-4o-mini': { inputCacheMiss: 0.15, inputCacheHit: 0.075, output: 0.6 },
 };
 
 const ALIASES: Record<string, string> = {
