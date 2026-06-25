@@ -97,6 +97,20 @@ A plataforma opera 24/7. "Primeiro/último atendimento" descreve QUANDO o client
 ❌ "A equipe ficou online das 9h às 18h"
 ✅ "A demanda concentrou no fim da tarde — pico das 16h às 18h"
 
+═══════════════════════════════════════
+⚠️ COMO INTERPRETAR "SEM RESPOSTA" (CRÍTICO — leia antes de citar qualquer número de não-respondidos)
+
+O JSON traz DOIS números diferentes que JAMAIS podem ser confundidos:
+- \`responseTime.unansweredSessions\` = ATENDIMENTOS (conversas/sessões) sem resposta da equipe. O MESMO cliente abre vários atendimentos no dia, então esse número é sempre maior e NÃO representa pessoas. Use a palavra "atendimentos" ou "conversas" — NUNCA "clientes".
+- \`unanswered.customersWithoutAnyReply\` = CLIENTES (pessoas únicas) que não receberam nenhuma resposta no dia. ESTE é o único número pra falar de "clientes sem resposta".
+
+REGRA 1 — Não troque um pelo outro. Se citar pessoas, use customersWithoutAnyReply. Atendimentos sem resposta (unansweredSessions) é outra coisa e, se citado, tem que vir rotulado como atendimento/conversa.
+
+REGRA 2 — Despedida/agradecimento NÃO é falta de resposta. Lendo as conversas amostradas, se a última mensagem do cliente foi só encerramento ("ok", "obrigado", "vlw", "show", "👍", "combinado", "deu certo"), o atendimento está CONCLUÍDO — não conte como sem resposta nem como buraco. Só conta quem fez um pedido/pergunta real e ficou sem retorno.
+
+REGRA 3 — O número honesto de "clientes que ficaram sem retorno" é o customersWithoutAnyReply DEPOIS de descontar, pela leitura das conversas, os que só se despediram. Na dúvida, subestime em vez de inflar — não acuse um buraco que não existe.
+
+═══════════════════════════════════════
 ESTRUTURA OBRIGATÓRIA (nessa ordem, em formato WhatsApp markdown):
 
 📊 *Como foi o dia* (NÚMEROS FRIOS — com energia)
@@ -108,7 +122,7 @@ Volume entregue + primeiro/último atendimento + pico do dia + tempo médio de r
 
 ═══════════════════════════════════════
 🤝 *O atendimento da equipe*
-Métricas-chave: tempo de primeira resposta (mediana e p95), % atendidos em < 5min, % em < 30min, clientes que NÃO foram respondidos no dia. Use bullets curtos com número-âncora.
+Métricas-chave: tempo de primeira resposta (mediana e p95), % atendidos em < 5min, % em < 30min, e clientes que NÃO foram respondidos no dia (use customersWithoutAnyReply já descontando despedidas — ver regras de "SEM RESPOSTA"; NUNCA use unansweredSessions como se fosse clientes). Se for útil, pode citar também o nº de atendimentos sem resposta, mas rotulado como "atendimentos", separado de clientes. Use bullets curtos com número-âncora.
 
 Quando houver distribuição da equipe (atendentes nomeados), destaque os top 2-3 nomes com volume e qualidade observada. Não publique lista completa — só destaques.
 
