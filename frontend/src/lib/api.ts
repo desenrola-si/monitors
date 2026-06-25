@@ -80,6 +80,51 @@ export interface JobLogEntry {
   data: Record<string, unknown> | null;
 }
 
+export interface CostTokens {
+  prompt: number;
+  cached: number;
+  completion: number;
+}
+
+export interface ClientCost {
+  tenantId: string;
+  name: string | null;
+  calls: number;
+  tokens: CostTokens;
+  usd: number;
+  brl: number;
+  unpricedCalls: number;
+}
+
+export interface WorkflowCost {
+  workflowDefinitionId: string | null;
+  slug: string | null;
+  name: string | null;
+  tenantId: string;
+  calls: number;
+  tokens: CostTokens;
+  usd: number;
+  brl: number;
+  unpricedCalls: number;
+}
+
+export interface CostBreakdown {
+  period: { from: string; to: string };
+  total: { calls: number; tokens: CostTokens; usd: number; brl: number; unpricedCalls: number };
+  byClient: ClientCost[];
+  byWorkflow: WorkflowCost[];
+}
+
+export const costsApi = {
+  breakdown: (from?: string, to?: string) => {
+    const q = new URLSearchParams();
+    if (from) q.set('from', from);
+    if (to) q.set('to', to);
+    const qs = q.toString();
+    return api.get<CostBreakdown>(`/api/costs${qs ? `?${qs}` : ''}`);
+  },
+};
+
 export const jobsApi = {
   list: () => api.get<JobsList>('/api/jobs'),
   trigger: (name: string) => api.post<{ ok: boolean }>(`/api/jobs/${name}/trigger`),

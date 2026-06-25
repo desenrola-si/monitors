@@ -11,6 +11,9 @@
   } from '../lib/stream';
   import JobCard from '../components/JobCard.svelte';
   import HistoryDrawer from '../components/HistoryDrawer.svelte';
+  import Costs from './Costs.svelte';
+
+  let view = $state<'jobs' | 'costs'>('jobs');
 
   interface Props {
     username: string;
@@ -202,6 +205,14 @@
       <span class="brand-icon">⚡</span>
       <span class="brand-name">Desenrola Monitors</span>
     </div>
+    <nav class="nav">
+      <button class="nav-item" class:active={view === 'jobs'} onclick={() => (view = 'jobs')}>
+        Jobs
+      </button>
+      <button class="nav-item" class:active={view === 'costs'} onclick={() => (view = 'costs')}>
+        Custos
+      </button>
+    </nav>
     <div class="topbar-right">
       <span
         class="stream-indicator"
@@ -222,7 +233,9 @@
   </header>
 
   <main class="content">
-    {#if loading}
+    {#if view === 'costs'}
+      <Costs onUnauthorized={onLogout} />
+    {:else if loading}
       <p class="state">carregando jobs…</p>
     {:else if error}
       <p class="state state-error">{error}</p>
@@ -280,6 +293,29 @@
   .brand-name {
     font-weight: 600;
     letter-spacing: -0.01em;
+  }
+
+  .nav {
+    display: flex;
+    gap: var(--space-1);
+    margin-left: var(--space-6);
+    flex: 1;
+  }
+  .nav-item {
+    padding: var(--space-2) var(--space-3);
+    font-size: 13px;
+    color: var(--text-tertiary);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--duration-fast) var(--easing-default);
+  }
+  .nav-item:hover {
+    color: var(--text-secondary);
+    background: var(--bg-hover);
+  }
+  .nav-item.active {
+    color: var(--text-primary);
+    background: var(--bg-hover);
   }
 
   .topbar-right {

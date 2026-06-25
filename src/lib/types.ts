@@ -12,6 +12,7 @@ export const TYPES = {
   JobLogsRepository: Symbol.for('JobLogsRepository'),
   HealthCheckRepository: Symbol.for('HealthCheckRepository'),
   PortfolioRepository: Symbol.for('PortfolioRepository'),
+  CostRepository: Symbol.for('CostRepository'),
   JobEvents: Symbol.for('JobEvents'),
 } as const;
 
