@@ -10,6 +10,11 @@ import {
   buildUserPromptHuman,
 } from './report-prompt-human.js';
 import { existsCompletedReport, saveReport } from './save.js';
+import {
+  classifyUnanswered,
+  fetchUnansweredCandidates,
+  type ClassifiedUnanswered,
+} from './metrics/classify-unanswered.js';
 import type { CollectedMetrics } from './metrics/types.js';
 import {
   buildBannedPhrasesPromptSection,
@@ -112,10 +117,20 @@ async function generateOneReport(
     loadBannedPhrases(tenant.id),
   ]);
 
+  // Modo humano: traz os clientes sem nenhuma resposta no dia e deixa o LLM
+  // julgar quais EXIGIAM resposta (descarta saudação solta / despedida).
+  // A contagem final (needsReplyCount) é determinística sobre o veredito.
+  let unanswered: ClassifiedUnanswered | null = null;
+  if (tenant.mode === 'human') {
+    const candidates = await fetchUnansweredCandidates(tenant.id, reportDate);
+    unanswered = await classifyUnanswered(candidates);
+  }
+
   const { systemPrompt, userPrompt } = await buildPrompts(
     tenant,
     metrics,
     tenantMemory,
+    unanswered,
   );
   const systemPromptWithBans =
     systemPrompt + buildBannedPhrasesPromptSection(bannedPhrases);
@@ -126,8 +141,8 @@ async function generateOneReport(
   });
 
   let matches = findMatches(llm.message, bannedPhrases);
-  let totalTokensInput = llm.tokens.input;
-  let totalTokensOutput = llm.tokens.output;
+  let totalTokensInput = llm.tokens.input + (unanswered?.tokens.input ?? 0);
+  let totalTokensOutput = llm.tokens.output + (unanswered?.tokens.output ?? 0);
 
   if (matches.length > 0) {
     logger.warn(
@@ -203,11 +218,12 @@ async function buildPrompts(
   tenant: ActiveTenant,
   metrics: CollectedMetrics,
   tenantMemory: string,
+  unanswered: ClassifiedUnanswered | null,
 ): Promise<{ systemPrompt: string; userPrompt: string }> {
   if (tenant.mode === 'human' && metrics.mode === 'human') {
     return {
       systemPrompt: REPORT_META_SYSTEM_PROMPT_HUMAN,
-      userPrompt: buildUserPromptHuman({ tenantMemory, metrics }),
+      userPrompt: buildUserPromptHuman({ tenantMemory, metrics, unanswered }),
     };
   }
 

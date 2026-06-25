@@ -15,6 +15,36 @@ export interface LlmResult {
   tokens: { input: number; output: number };
 }
 
+export async function chatJson<T>(args: {
+  systemPrompt: string;
+  userPrompt: string;
+  model?: string;
+}): Promise<{ data: T; tokens: { input: number; output: number } }> {
+  const model = args.model ?? config.deepseek.model;
+  const response = await client.chat.completions.create({
+    model,
+    messages: [
+      { role: 'system', content: args.systemPrompt },
+      { role: 'user', content: args.userPrompt },
+    ],
+    temperature: 0,
+    response_format: { type: 'json_object' },
+  });
+
+  const content = response.choices[0]?.message?.content?.trim();
+  if (!content) {
+    throw new Error('chatJson: DeepSeek retornou conteúdo vazio');
+  }
+
+  return {
+    data: JSON.parse(content) as T,
+    tokens: {
+      input: response.usage?.prompt_tokens ?? 0,
+      output: response.usage?.completion_tokens ?? 0,
+    },
+  };
+}
+
 export async function generateReport(args: {
   systemPrompt: string;
   userPrompt: string;

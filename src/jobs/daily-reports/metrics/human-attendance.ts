@@ -5,7 +5,7 @@ import { HumanAttendanceMetrics } from './types.js';
  * Janela do dia em BRT (UTC-3): início 03:00 UTC do reportDate até 03:00 UTC
  * do dia seguinte. Mantém consistência com desenrola.ts/workflow.ts.
  */
-function utcRangeForBrtDay(reportDate: string): { start: string; end: string } {
+export function utcRangeForBrtDay(reportDate: string): { start: string; end: string } {
   return {
     start: `'${reportDate} 03:00:00'`,
     end: `('${reportDate}'::date + INTERVAL '1 day' + INTERVAL '3 hours')::timestamp`,

@@ -3,6 +3,7 @@ import {
   SampledConversations,
 } from './metrics/conversations.js';
 import { CollectedMetricsHuman } from './metrics/types.js';
+import type { ClassifiedUnanswered } from './metrics/classify-unanswered.js';
 import { sanitizeUnicode } from './sanitize.js';
 
 /**
@@ -98,17 +99,13 @@ A plataforma opera 24/7. "Primeiro/último atendimento" descreve QUANDO o client
 ✅ "A demanda concentrou no fim da tarde — pico das 16h às 18h"
 
 ═══════════════════════════════════════
-⚠️ COMO INTERPRETAR "SEM RESPOSTA" (CRÍTICO — leia antes de citar qualquer número de não-respondidos)
+⚠️ COMO FALAR DE "SEM RESPOSTA" (CRÍTICO)
 
-O JSON traz DOIS números diferentes que JAMAIS podem ser confundidos:
-- \`responseTime.unansweredSessions\` = ATENDIMENTOS (conversas/sessões) sem resposta da equipe. O MESMO cliente abre vários atendimentos no dia, então esse número é sempre maior e NÃO representa pessoas. Use a palavra "atendimentos" ou "conversas" — NUNCA "clientes".
-- \`unanswered.customersWithoutAnyReply\` = CLIENTES (pessoas únicas) que não receberam nenhuma resposta no dia. ESTE é o único número pra falar de "clientes sem resposta".
+O número de "clientes sem resposta" JÁ vem pronto e classificado na seção "CLIENTES SEM RESPOSTA — JÁ CLASSIFICADOS" (campo needsReplyCount). USE EXATAMENTE esse número quando falar de clientes que ficaram sem retorno. NÃO recalcule, NÃO some, NÃO use outro.
 
-REGRA 1 — Não troque um pelo outro. Se citar pessoas, use customersWithoutAnyReply. Atendimentos sem resposta (unansweredSessions) é outra coisa e, se citado, tem que vir rotulado como atendimento/conversa.
-
-REGRA 2 — Despedida/agradecimento NÃO é falta de resposta. Lendo as conversas amostradas, se a última mensagem do cliente foi só encerramento ("ok", "obrigado", "vlw", "show", "👍", "combinado", "deu certo"), o atendimento está CONCLUÍDO — não conte como sem resposta nem como buraco. Só conta quem fez um pedido/pergunta real e ficou sem retorno.
-
-REGRA 3 — O número honesto de "clientes que ficaram sem retorno" é o customersWithoutAnyReply DEPOIS de descontar, pela leitura das conversas, os que só se despediram. Na dúvida, subestime em vez de inflar — não acuse um buraco que não existe.
+- NÃO use \`responseTime.unansweredSessions\` do JSON como "clientes": isso é ATENDIMENTOS/conversas (o mesmo cliente abre vários no dia), sempre maior. Só pode aparecer se rotulado explicitamente como "atendimentos", nunca como "clientes".
+- NÃO use \`unanswered.customersWithoutAnyReply\` do JSON: é o número BRUTO (inclui saudação/despedida). O classificador já depurou ele — confie só no needsReplyCount.
+- Despedida/agradecimento ("ok", "obrigado", "vlw") já foi descontada pelo classificador. Não reabra essa conta.
 
 ═══════════════════════════════════════
 ESTRUTURA OBRIGATÓRIA (nessa ordem, em formato WhatsApp markdown):
@@ -179,8 +176,9 @@ Saída: apenas o relatório final, em pt-BR, pronto pra enviar ao cliente.`;
 export function buildUserPromptHuman(args: {
   tenantMemory: string;
   metrics: CollectedMetricsHuman;
+  unanswered: ClassifiedUnanswered | null;
 }): string {
-  const { tenantMemory, metrics } = args;
+  const { tenantMemory, metrics, unanswered } = args;
 
   const blocks: string[] = [
     `# Relatório do dia ${metrics.reportDate}`,
@@ -214,6 +212,12 @@ export function buildUserPromptHuman(args: {
     ``,
     `---`,
     ``,
+    `## CLIENTES SEM RESPOSTA — JÁ CLASSIFICADOS (fonte oficial do número)`,
+    ``,
+    renderUnanswered(unanswered),
+    ``,
+    `---`,
+    ``,
     `## Conversas amostradas do dia (LEIA E INTERPRETE)`,
     ``,
     formatConversationSamples(metrics.conversationSamples),
@@ -231,6 +235,27 @@ function metricsWithoutSamples(
 ): Omit<CollectedMetricsHuman, 'conversationSamples'> {
   const { conversationSamples: _unused, ...rest } = metrics;
   return rest;
+}
+
+function renderUnanswered(u: ClassifiedUnanswered | null): string {
+  if (!u || u.candidates === 0) {
+    return 'Nenhum cliente ficou sem resposta no dia. NÃO invente buracos de atendimento que não existem.';
+  }
+
+  const real = u.verdicts.filter((v) => v.needsReply);
+  const lines = [
+    'Um classificador já leu CADA cliente que ficou sem nenhuma resposta no dia e decidiu quais EXIGIAM retorno (pedido/pergunta/problema) e quais eram só saudação solta ou despedida.',
+    ``,
+    `- *Clientes sem resposta que exigiam retorno: ${u.needsReplyCount}* ← USE ESTE número quando falar de "clientes sem resposta". NÃO use unansweredSessions nem customersWithoutAnyReply do JSON.`,
+    `- Candidatos avaliados no total: ${u.candidates}. Os demais (${u.candidates - u.needsReplyCount}) eram saudação/despedida e NÃO contam como sem resposta.`,
+  ];
+
+  if (real.length > 0) {
+    lines.push(``, 'Natureza dos que ficaram sem retorno (pra contextualizar — não exponha dados pessoais):');
+    for (const v of real.slice(0, 15)) lines.push(`- ${v.reason}`);
+  }
+
+  return lines.join('\n');
 }
 
 function formatConversationSamples(samples: SampledConversations): string {
