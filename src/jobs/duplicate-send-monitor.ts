@@ -99,7 +99,10 @@ export class DuplicateSendMonitorJob extends Job {
         origin,
         COALESCE(origin_id::text, '') AS origin_id,
         request_id,
-        LEFT(regexp_replace(message, '\\s+', ' ', 'g'), 80) AS message_preview,
+        COALESCE(
+          NULLIF(LEFT(regexp_replace(MAX(message), '\\s+', ' ', 'g'), 80), ''),
+          '[mídia]'
+        ) AS message_preview,
         COUNT(*)::int AS dup_count,
         TO_CHAR(MIN(created_at), 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS first_at,
         TO_CHAR(MAX(created_at), 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS last_at,
@@ -107,7 +110,11 @@ export class DuplicateSendMonitorJob extends Job {
       FROM message_logs
       WHERE origin IN ('tenant', 'template')
         AND created_at >= NOW() - make_interval(hours => $1)
-      GROUP BY tenant_id, origin, origin_id, request_id, message
+      GROUP BY tenant_id, origin, origin_id, request_id,
+        COALESCE(
+          NULLIF(regexp_replace(message, '\\s+', ' ', 'g'), ''),
+          'attach:' || COALESCE(attachments->0->>'storageKey', '')
+        )
       HAVING COUNT(*) >= $2
         AND EXTRACT(EPOCH FROM (MAX(created_at) - MIN(created_at))) <= $3
       ORDER BY dup_count DESC
