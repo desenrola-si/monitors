@@ -11,6 +11,11 @@ const DUPLICATE_THRESHOLD = 3;
 const WINDOW_SECONDS = 60;
 const EXPIRY_HOURS = 24;
 
+// Templates que legitimamente são enviados várias vezes pro mesmo cliente em
+// pouco tempo (confirmações/lembretes por agendamento) — não são reenvio em
+// loop. Ficam de fora da detecção pra não gerar falso positivo.
+const EXEMPT_TEMPLATE_NAMES = ['confirmacao_de_agendamento'];
+
 interface BurstRow {
   tenant_id: string;
   origin: string;
@@ -110,6 +115,10 @@ export class DuplicateSendMonitorJob extends Job {
       FROM message_logs
       WHERE origin IN ('tenant', 'template')
         AND created_at >= NOW() - make_interval(hours => $1)
+        AND (
+          metadata->>'templateName' IS NULL
+          OR metadata->>'templateName' <> ALL($4::text[])
+        )
       GROUP BY tenant_id, origin, origin_id, request_id,
         COALESCE(
           NULLIF(regexp_replace(message, '\\s+', ' ', 'g'), ''),
@@ -120,7 +129,7 @@ export class DuplicateSendMonitorJob extends Job {
       ORDER BY dup_count DESC
       LIMIT 100
       `,
-      [LOOKBACK_HOURS, DUPLICATE_THRESHOLD, WINDOW_SECONDS],
+      [LOOKBACK_HOURS, DUPLICATE_THRESHOLD, WINDOW_SECONDS, EXEMPT_TEMPLATE_NAMES],
     );
 
     if (rows.length === 0) {
