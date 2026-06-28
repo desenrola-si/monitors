@@ -93,7 +93,7 @@ export class CostRepository {
       FROM execution_step_logs s
       JOIN workflow_executions e ON e.id = s.workflow_execution_id
       LEFT JOIN workflow_definitions d ON d.id = e.workflow_definition_id
-      WHERE s.step_type = 'ai_processing'
+      WHERE s.step_type IN ('ai_processing', 'knowledge_base')
         AND s.metadata->'usage'->>'promptTokens' IS NOT NULL
         AND e.started_at >= $1::date
         AND e.started_at <  ($2::date + interval '1 day')
