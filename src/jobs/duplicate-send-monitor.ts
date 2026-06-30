@@ -16,6 +16,11 @@ const EXPIRY_HOURS = 24;
 // loop. Ficam de fora da detecção pra não gerar falso positivo.
 const EXEMPT_TEMPLATE_NAMES = ['confirmacao_de_agendamento'];
 
+// Repositório da causa-raiz desta rajada: o caminho de envio
+// (SendMessageActionService) vive no monólito restaurant-api — é ele que o
+// sre-agent (Zezinho) deve investigar, NÃO o monitors (que só detecta).
+const CAUSE_REPO = 'desenrola-si/desenrola-restaurant-reservation-api';
+
 interface BurstRow {
   tenant_id: string;
   origin: string;
@@ -166,7 +171,19 @@ export class DuplicateSendMonitorJob extends Job {
         log.warn(
           `🚨 Rajada #${created.id} tenant=${row.tenant_id.slice(0, 8)} conta=${row.origin_id} ${row.request_id} x${row.dup_count} em ${row.window_seconds}s`,
         );
-        await this.notifier.googleChat(this.formatMessage(row));
+        const message = this.formatMessage(row);
+        await this.notifier.googleChat(message);
+        // Aciona o sre-agent (Zezinho) para investigar o caminho de envio.
+        // O contexto rico (tenant/conversa/mensagem/link) vai nas annotations;
+        // repo = restaurant-api (a causa), não monitors.
+        await this.notifier.sreAgent({
+          alertname: 'duplicate_outbound_burst',
+          repo: CAUSE_REPO,
+          fingerprint,
+          summary:
+            'Mensagens de saída duplicadas em rajada — risco de bloqueio Meta (131031)',
+          description: message,
+        });
       }
     }
 
