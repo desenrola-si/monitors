@@ -16,6 +16,15 @@ const TENANT_NAME = 'Amilgás';
 const SCHEDULING_CONFIRMATION_REGEX =
   'agendamento\\s+confirmado|marcamos\\s+sua\\s+vistoria\\s+para';
 
+// Corroboração: confirmação REAL cria work_order e sempre cita o protocolo
+// (OSxxxxx com dígitos). Sem protocolo não houve criação — é a IA só
+// MENCIONANDO a frase, não emitindo uma confirmação. Ex. falso positivo
+// 01/07/2026: "procure no e-mail pelo título 'Agendamento confirmado!'"
+// casava a regex forte sem nenhum agendamento ter acontecido. Exigir o
+// protocolo elimina o eco sem perder nenhuma confirmação real (validado:
+// 479/480 confirmações de 7 dias têm protocolo; a única sem era o eco).
+const SCHEDULING_PROTOCOL_REGEX = 'OS\\s?\\d{3,}';
+
 // Exclusão: mensagens de cancelamento podem mencionar a data agendada
 // ("OS39782 — agendada para amanhã ... foi cancelada"). Não são confirmação
 // de NOVA criação. Excluir essas pra evitar ruído.
@@ -136,13 +145,15 @@ export class AnthrotechAvailabilityBypassJob extends Job {
         AND m.origin = 'agent'
         AND m.receivad_at >= $2::timestamp
         AND m.message ~* $3
-        AND m.message !~* $4
+        AND m.message ~* $4
+        AND m.message !~* $5
       ORDER BY m.receivad_at DESC
       `,
       [
         TENANT_ID,
         sinceUtc.toISOString(),
         SCHEDULING_CONFIRMATION_REGEX,
+        SCHEDULING_PROTOCOL_REGEX,
         CANCELLATION_EXCLUSION_REGEX,
       ],
     );
