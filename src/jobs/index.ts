@@ -6,7 +6,6 @@ import { PortfolioReportJob } from './portfolio-report/job.js';
 import { AnthrotechAvailabilityBypassJob } from './anthrotech-availability-bypass-monitor.js';
 import { CustomerDuplicateWaIdDriftJob } from './customer-duplicate-wa-id-drift-monitor.js';
 import { CustomerMultiAccountComplianceJob } from './customer-multi-account-compliance-monitor.js';
-import { AiRagQualityMonitorJob } from './ai-rag-quality-monitor.js';
 import { DuplicateSendMonitorJob } from './duplicate-send-monitor.js';
 
 /**
@@ -24,7 +23,6 @@ export const JOB_CLASSES: Array<new (...args: any[]) => Job> = [
   AnthrotechAvailabilityBypassJob,
   CustomerDuplicateWaIdDriftJob,
   CustomerMultiAccountComplianceJob,
-  AiRagQualityMonitorJob,
   DuplicateSendMonitorJob,
 ];
 
