@@ -1,6 +1,5 @@
 import { Container } from 'inversify';
 import { Job } from '../lib/job.js';
-import { FrustrationMonitorJob } from './frustration-monitor.js';
 import { DailyReportsJob } from './daily-reports/job.js';
 import { HealthCheckJob } from './health-check/job.js';
 import { PortfolioReportJob } from './portfolio-report/job.js';
@@ -19,7 +18,6 @@ import { DuplicateSendMonitorJob } from './duplicate-send-monitor.js';
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const JOB_CLASSES: Array<new (...args: any[]) => Job> = [
-  FrustrationMonitorJob,
   DailyReportsJob,
   HealthCheckJob,
   PortfolioReportJob,

@@ -3,7 +3,6 @@ import { TYPES } from '../types.js';
 import { Database } from '../database.js';
 
 export type AlertTypeCode =
-  | 'frustration_not_escalated'
   | 'dm_not_delivered'
   | 'workflow_failure'
   | 'message_delivery_failure'
