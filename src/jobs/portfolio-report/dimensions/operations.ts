@@ -6,11 +6,17 @@ import {
 import { OPERATIONS, WINDOW } from '../config.js';
 
 /**
- * Operations = quantos findings do health-check técnico tocaram esse tenant.
+ * Operations = quantos casos técnicos abertos tocam esse tenant.
  *
- * Lê do DB `monitors` (`health_check_findings`). Diferente das outras
- * dimensões, aqui o valor absoluto importa — 1 finding já é ruído, 6+ vira
- * problema sistêmico. A média 7d serve só pra contexto.
+ * Lê do DB `monitors` (`health_check_findings`). O health-check roda a cada
+ * 30min e grava 1 finding por check_code ENQUANTO a condição persiste — então
+ * um único caso preso vira ~48 rows/dia. Contar rows (COUNT(*)) superconta o
+ * mesmo problema e faz 1 caso parecer dezenas de incidentes. O número real de
+ * casos abertos é o `metric_value` do snapshot MAIS RECENTE de cada check_code
+ * na janela.
+ *
+ * Diferente das outras dimensões, aqui o valor absoluto importa — 1 caso já é
+ * ruído, 6+ vira problema sistêmico. A média 7d serve só pra contexto.
  */
 export class OperationsDimension implements Dimension {
   readonly code = 'operations' as const;
@@ -18,56 +24,59 @@ export class OperationsDimension implements Dimension {
   async run(ctx: DimensionContext): Promise<DimensionResult> {
     const { db, tenant, window } = ctx;
 
-    const [today] = await db.query<{
-      findings: string;
-      critical: string;
-      checks: string;
+    // Último snapshot de cada check_code na janela = estado real de casos
+    // abertos (não o número de vezes que o monitor rodou).
+    const latestRows = await db.query<{
+      check_code: string;
+      metric_value: string | null;
+      severity: string;
     }>(
       `
-      SELECT
-        COUNT(*)::text AS findings,
-        COUNT(*) FILTER (WHERE severity = 'critical')::text AS critical,
-        COUNT(DISTINCT check_code)::text AS checks
+      SELECT DISTINCT ON (check_code)
+        check_code,
+        metric_value::text AS metric_value,
+        severity
       FROM health_check_findings
       WHERE tenant_id::text = $1
         AND created_at >= $2
         AND created_at <  $3
+      ORDER BY check_code, created_at DESC
       `,
       [tenant.id, window.currentStart, window.currentEnd],
       'monitors',
     );
 
-    const [baseline] = await db.query<{ findings: string }>(
+    // Baseline = média diária de casos abertos nos últimos 7d. Mesmo cuidado:
+    // por dia, pega o último snapshot de cada check_code antes de somar.
+    const [baseline] = await db.query<{ cases: string }>(
       `
-      SELECT COUNT(*)::text AS findings
-      FROM health_check_findings
-      WHERE tenant_id::text = $1
-        AND created_at >= $2
-        AND created_at <  $3
+      WITH per_day AS (
+        SELECT DISTINCT ON (date_trunc('day', created_at), check_code)
+          metric_value
+        FROM health_check_findings
+        WHERE tenant_id::text = $1
+          AND created_at >= $2
+          AND created_at <  $3
+        ORDER BY date_trunc('day', created_at), check_code, created_at DESC
+      )
+      SELECT COALESCE(SUM(COALESCE(metric_value, 0)), 0)::text AS cases
+      FROM per_day
       `,
       [tenant.id, window.baselineStart, window.baselineEnd],
       'monitors',
     );
 
-    // Quais check_codes apareceram hoje (pra raw_data)
-    const checkRows = await db.query<{ check_code: string; count: string }>(
-      `
-      SELECT check_code, COUNT(*)::text AS count
-      FROM health_check_findings
-      WHERE tenant_id::text = $1
-        AND created_at >= $2
-        AND created_at <  $3
-      GROUP BY check_code
-      ORDER BY COUNT(*) DESC
-      `,
-      [tenant.id, window.currentStart, window.currentEnd],
-      'monitors',
+    const findingsToday = latestRows.reduce(
+      (sum, r) => sum + Number(r.metric_value ?? 0),
+      0,
     );
-
-    const findingsToday = Number(today?.findings ?? 0);
-    const criticalToday = Number(today?.critical ?? 0);
-    const checksToday = Number(today?.checks ?? 0);
-    const findingsBaseline = Number(baseline?.findings ?? 0);
+    const criticalToday = latestRows.filter(
+      (r) => r.severity === 'critical',
+    ).length;
+    const checksToday = latestRows.filter(
+      (r) => Number(r.metric_value ?? 0) > 0,
+    ).length;
+    const findingsBaseline = Number(baseline?.cases ?? 0);
     const baselineAvg = findingsBaseline / WINDOW.baselineDays;
 
     const status = classifyOps(findingsToday, criticalToday);
@@ -99,9 +108,9 @@ export class OperationsDimension implements Dimension {
         distinct_checks_today: checksToday,
         findings_baseline_total: findingsBaseline,
         findings_baseline_avg: round2(baselineAvg),
-        check_breakdown: checkRows.reduce<Record<string, number>>(
+        check_breakdown: latestRows.reduce<Record<string, number>>(
           (acc, r) => {
-            acc[r.check_code] = Number(r.count);
+            acc[r.check_code] = Number(r.metric_value ?? 0);
             return acc;
           },
           {},
