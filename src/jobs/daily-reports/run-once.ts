@@ -236,7 +236,7 @@ async function buildPrompts(
     const prompt = await resolveTenantPrompt(tenant.workflowSlug);
     if (!prompt) {
       throw new Error(
-        `Workflow ${tenant.workflowSlug} ativo não encontrado ou sem step ai_processing com system_prompt.`,
+        `Workflow ${tenant.workflowSlug} ativo não encontrado ou sem step de IA (ai_processing/knowledge_base) com system_prompt.`,
       );
     }
     return {
