@@ -1,5 +1,7 @@
 import { workflowPool } from './db.js';
 
+const AI_STEP_TYPES = ['ai_processing', 'knowledge_base'];
+
 interface WorkflowStep {
   type: string;
   config?: {
@@ -27,7 +29,8 @@ export interface TenantPrompt {
  * fonte de verdade pra qual tenant da app usa qual workflow.
  *
  * Retorna null se não houver workflow ativo com aquele slug ou se nenhum step
- * de IA tiver system_prompt preenchido.
+ * de IA (ai_processing ou knowledge_base, no caso das POCs RAG) tiver
+ * system_prompt preenchido.
  */
 export async function resolveTenantPrompt(
   workflowSlug: string,
@@ -53,7 +56,11 @@ export async function resolveTenantPrompt(
     return null;
   }
 
-  const aiStep = wf.definition.steps.find((s) => s.type === 'ai_processing');
+  const aiStep = wf.definition.steps.find(
+    (s) =>
+      AI_STEP_TYPES.includes(s.type) &&
+      Boolean(s.config?.system_prompt?.trim()),
+  );
   const systemPrompt = aiStep?.config?.system_prompt?.trim();
 
   if (!systemPrompt) {
