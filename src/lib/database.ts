@@ -61,7 +61,7 @@ export class Database {
       connectionString: url,
       max: 5,
       idleTimeoutMillis: 30_000,
-      connectionTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 60_000,
     });
     pool.on('error', (err) =>
       this.logger.error({ err: err.message, db: name }, 'pg pool error'),
