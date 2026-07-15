@@ -46,6 +46,36 @@ export interface WorkflowMetrics {
   guardViolations: number;
 }
 
+export interface AttendanceMetrics {
+  /**
+   * Espera do cliente pelo humano no handoff: da IA passar pra equipe
+   * (evento ai_ended/opened_for_human) até a 1ª resposta humana na sessão.
+   */
+  handoffToHuman: {
+    handoffs: number;
+    answeredByHuman: number;
+    unanswered: number;
+    medianMinutes: number | null;
+    p95Minutes: number | null;
+    under5min: number;
+    under30min: number;
+  };
+  /**
+   * Ciclo de encerramento do atendimento: quem fecha. Se a equipe assume mas
+   * quase nunca encerra, a IA fecha sozinha por inatividade — sinal de que o
+   * ciclo não é fechado pela ferramenta de Atendimento.
+   */
+  closure: {
+    sessionsAssumedByHuman: number;
+    closedByHuman: number;
+    closedByAiInactivity: number;
+    closedBySystemOther: number;
+    humanReplyMessages: number;
+    closedByHumanRate: number | null;
+  };
+  adoption: 'full' | 'partial' | 'not_used' | 'inactive';
+}
+
 export interface HumanAttendanceMetrics {
   messages: {
     total: number;
@@ -100,6 +130,7 @@ export interface CollectedMetricsAi extends CollectedMetricsBase {
   mode: 'ai';
   desenrola: DesenrolaMetrics;
   workflow: WorkflowMetrics;
+  attendance: AttendanceMetrics;
 }
 
 export interface CollectedMetricsHuman extends CollectedMetricsBase {

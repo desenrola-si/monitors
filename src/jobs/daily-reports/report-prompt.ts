@@ -178,6 +178,34 @@ O sistema opera 24/7. As métricas "primeiro atendimento", "último atendimento"
 
 Em dias de volume baixo (1-3 atendimentos), NÃO fingir que o dia foi "operação enxuta" ou inventar narrativa de cobertura. Descreva o volume real e foque na qualidade/tempo de resposta do que veio.
 
+🤝 ATENDIMENTO TOTAL (IA + EQUIPE) — TEMPO ATÉ A EQUIPE ATENDER + USO DO PAINEL:
+
+O JSON traz o campo \`attendance\`. Ele existe pra você mostrar o ATENDIMENTO TOTAL — não só o desempenho da IA. Há DOIS tempos distintos, NUNCA some nem confunda:
+- Tempo de resposta da IA → vem de \`workflow.latencyMs\` (segundos). É a resposta imediata.
+- Tempo até a EQUIPE atender no repasse → vem de \`attendance.handoffToHuman\` (minutos). É a espera do cliente depois que a IA passou pra equipe.
+
+COMO USAR \`attendance.handoffToHuman\`:
+- \`medianMinutes\` = tempo típico até um humano atender depois que a IA repassou. Traduza leigo: "quando passou pra equipe, a primeira resposta humana saiu em ~X min (tempo típico do dia)".
+- \`unanswered\` = clientes repassados pra equipe que ficaram SEM atendimento no dia. Se > 0, NÃO exponha como falha do sistema — vire oportunidade do CLIENTE: "N clientes passaram pra equipe e não tiveram retorno no dia — vale retomar esses contatos". Emende com o ângulo de a IA cobrir esses casos (fora do horário, retomada automática).
+- Se \`handoffs\` = 0, não houve repasse pra equipe no dia — NÃO invente tempo humano.
+
+O ATENDIMENTO tem um ciclo: inicia E encerra. \`attendance.closure\` mostra QUEM encerra:
+- \`closedByHuman\` = atendimentos que a equipe encerrou (fechou o atendimento ao terminar).
+- \`closedByAiInactivity\` = atendimentos que o sistema encerrou sozinho porque ficaram parados (a equipe não encerrou).
+- \`sessionsAssumedByHuman\` = atendimentos que a equipe assumiu no dia.
+
+\`attendance.adoption\` diz se a equipe FECHA o ciclo do atendimento. ISSO MUDA O RELATÓRIO:
+- \`'inactive'\` → dia conduzido pela IA, sem atendimento humano. Não fale de tempo/encerramento da equipe; foque na IA.
+- \`'full'\` → a equipe assume E encerra os atendimentos. Apresente \`medianMinutes\` normalmente. NÃO fale de encerramento (soa deslocado — está tudo certo).
+- \`'partial'\` ou \`'not_used'\` → a equipe atendeu, mas quase não ENCERROU os atendimentos — eles ficaram abertos até o sistema fechar por inatividade. Então:
+  1. Os tempos de atendimento humano do dia são PARCIAIS (medidos só sobre os atendimentos com ciclo completo). NÃO apresente \`medianMinutes\` como número fechado do dia. Nunca diga que NOSSOS números estão errados/imprecisos.
+  2. Em 💡 *Oportunidades* ou 📌 *Sugestões*, inclua UM convite pra equipe ENCERRAR os atendimentos ao terminar — SEMPRE como ganho do cliente, nunca como correção de erro:
+     ✅ "Encerrar cada atendimento ao terminar (em vez de deixar o sistema fechar sozinho) mantém a fila limpa, mostra o tempo real de resposta da sua equipe e evita cliente esquecido em aberto."
+     ❌ "Vocês estão usando errado" / "as métricas estão imprecisas" / "os dados não são confiáveis"
+  3. Enquadramento: "fechando o atendimento ao concluir, o acompanhamento fica completo e a operação mais visível pra você". É upgrade de visibilidade, não conserto.
+
+REGRA: o convite pra encerrar os atendimentos SÓ aparece quando \`adoption\` é \`'partial'\` ou \`'not_used'\`. Nos demais casos, não toque no assunto.
+
 ESTRUTURA OBRIGATÓRIA (nessa ordem, em formato WhatsApp markdown):
 
 📊 *Como foi o dia* (NÚMEROS FRIOS — com energia)

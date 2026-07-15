@@ -4,6 +4,7 @@ import { collectDesenrolaMetrics } from './desenrola.js';
 import { sampleConversations } from './conversations.js';
 import { collectWorkflowMetrics } from './workflow.js';
 import { collectHumanAttendanceMetrics } from './human-attendance.js';
+import { collectAttendanceMetrics } from './attendance.js';
 import { CollectedMetrics } from './types.js';
 
 const baseChannels = (tenant: ActiveTenant) => ({
@@ -36,11 +37,13 @@ export async function collectMetrics(
     };
   }
 
-  const [desenrola, workflow, conversationSamples] = await Promise.all([
-    collectDesenrolaMetrics(tenant.id, reportDate),
-    collectWorkflowMetrics(tenant.id, reportDate),
-    sampleConversations(tenant.id, reportDate, config.conversationSamples.n),
-  ]);
+  const [desenrola, workflow, attendance, conversationSamples] =
+    await Promise.all([
+      collectDesenrolaMetrics(tenant.id, reportDate),
+      collectWorkflowMetrics(tenant.id, reportDate),
+      collectAttendanceMetrics(tenant.id, reportDate),
+      sampleConversations(tenant.id, reportDate, config.conversationSamples.n),
+    ]);
 
   return {
     mode: 'ai',
@@ -50,6 +53,7 @@ export async function collectMetrics(
     channels: baseChannels(tenant),
     desenrola,
     workflow,
+    attendance,
     conversationSamples,
     collectedAt: new Date().toISOString(),
   };
