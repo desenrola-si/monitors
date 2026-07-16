@@ -7,6 +7,7 @@ import { AnthrotechAvailabilityBypassJob } from './anthrotech-availability-bypas
 import { CustomerDuplicateWaIdDriftJob } from './customer-duplicate-wa-id-drift-monitor.js';
 import { CustomerMultiAccountComplianceJob } from './customer-multi-account-compliance-monitor.js';
 import { DuplicateSendMonitorJob } from './duplicate-send-monitor.js';
+import { AiResponseCotLeakJob } from './ai-response-cot-leak-monitor.js';
 
 /**
  * Registro central de jobs. Pra adicionar novo cron:
@@ -24,6 +25,7 @@ export const JOB_CLASSES: Array<new (...args: any[]) => Job> = [
   CustomerDuplicateWaIdDriftJob,
   CustomerMultiAccountComplianceJob,
   DuplicateSendMonitorJob,
+  AiResponseCotLeakJob,
 ];
 
 export function registerJobs(container: Container): void {
