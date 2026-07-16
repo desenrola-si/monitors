@@ -20,7 +20,8 @@ export type AlertTypeCode =
   | 'anthrotech_date_weekday_mismatch'
   | 'customer_duplicate_wa_id_drift'
   | 'multi_account_compliance_gap'
-  | 'duplicate_outbound_burst';
+  | 'duplicate_outbound_burst'
+  | 'ai_response_cot_leak';
 
 export type AlertStatusCode =
   | 'open'
