@@ -16,7 +16,7 @@ import { chatJson } from './daily-reports/llm.js';
 //  2. marcadores de raciocínio em inglês;
 //  3. marcadores de raciocínio em português (o padrão do incidente Sunomono);
 //  4. palavras funcionais de inglês que praticamente não aparecem em pt-BR.
-const COT_LEAK_SIGNAL_REGEX =
+export const COT_LEAK_SIGNAL_REGEX =
   '<think|</think|' +
   '\\y(let me|i need to|i should|i will|i must|first,? i|the user|the customer|as an ai|okay,? so|i have to|we need to|analy[sz]ing)\\y|' +
   '\\y(vou seguir o fluxo|a regra diz|preciso verificar o fluxo|analisando a|o cliente (enviou|disse|escreveu)|deixe-me pensar|seguindo rigorosamente|conforme o fluxo)\\y|' +
@@ -57,7 +57,7 @@ interface LeakPayload extends Record<string, unknown> {
   classification: LeakClassification;
 }
 
-const CLASSIFIER_SYSTEM_PROMPT = [
+export const CLASSIFIER_SYSTEM_PROMPT = [
   'Você audita mensagens que uma IA de atendimento enviou a clientes finais',
   'via WhatsApp/Instagram. Detecte dois problemas:',
   '(1) VAZAMENTO DE RACIOCÍNIO (chain-of-thought): a mensagem revela o',
