@@ -74,6 +74,23 @@ export interface AttendanceMetrics {
     closedByHumanRate: number | null;
   };
   adoption: 'full' | 'partial' | 'not_used' | 'inactive';
+  /**
+   * Repasse automático da IA pra fila humana: quando a mensagem da IA fica sem
+   * resposta do cliente por mais que o threshold configurado
+   * (`reopen_ai_unanswered_settings`), a sessão volta pra fila (`open`). Um
+   * threshold muito curto pode tirar da IA a chance de concluir sozinha —
+   * qualquer pausa do cliente já joga a conversa pro humano.
+   *
+   * São dados CRUS: threshold configurado + reaberturas do dia. A leitura de
+   * "está curto demais?" é interpretativa e fica a cargo do relatório (LLM),
+   * que só levanta quando os números sustentarem. `null` quando o tenant não
+   * usa o mecanismo (sem setting habilitado).
+   */
+  aiQueueHandoff: {
+    thresholdMinutes: number;
+    reopensToday: number;
+    sessionsReopenedToday: number;
+  } | null;
 }
 
 export interface HumanAttendanceMetrics {

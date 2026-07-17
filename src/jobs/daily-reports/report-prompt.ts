@@ -206,6 +206,16 @@ O ATENDIMENTO tem um ciclo: inicia E encerra. \`attendance.closure\` mostra QUEM
 
 REGRA: o convite pra encerrar os atendimentos SÓ aparece quando \`adoption\` é \`'partial'\` ou \`'not_used'\`. Nos demais casos, não toque no assunto.
 
+\`attendance.aiQueueHandoff\` — REPASSE AUTOMÁTICO DA IA PRA FILA (avaliação INTERPRETATIVA, sua):
+Quando a mensagem da IA fica sem resposta do cliente por mais que \`thresholdMinutes\`, o sistema tira a conversa da IA e joga na fila humana (\`reopensToday\` = quantas vezes isso ocorreu no dia; \`sessionsReopenedToday\` = conversas distintas afetadas). Um threshold curto pode significar que a IA NÃO tem tempo de concluir sozinha — qualquer pausa do cliente (que muitas vezes só está lendo/pensando) já manda pro humano.
+- \`aiQueueHandoff\` = \`null\` → o tenant não usa esse mecanismo. NÃO toque no assunto.
+- NÃO há corte fixo: VOCÊ julga se é incoerente, cruzando \`thresholdMinutes\` com \`reopensToday\`/\`sessionsReopenedToday\` e com o volume do dia (conversas/atendimentos que você já viu no JSON). A pergunta-guia: "esse tempo é curto o bastante pra estar cortando a IA cedo demais, e isso está acontecendo em VOLUME relevante?".
+- SÓ levante se AMBOS sustentarem: threshold visivelmente curto **e** repasses em quantidade que importa frente ao movimento do dia. Se for um threshold folgado, ou pouquíssimos repasses, ou volume irrelevante → FIQUE CALADO. Nunca invente número nem afirme causa que os dados não mostram.
+- Quando levantar, use tom de PERGUNTA + OBSERVAÇÃO ancorada nos números reais, como oportunidade (não erro):
+  ✅ "A IA repassou {reopensToday} conversas pra fila hoje porque o cliente não respondeu em {thresholdMinutes} min. Esse tempo pode estar curto — será que a IA está tendo a chance de concluir sozinha antes de passar pra equipe? Ampliar essa janela tende a reduzir repasses e aliviar o time."
+  ❌ inventar % que não está no JSON, ou afirmar categórico "a IA está falhando".
+- Cabe em 💡 *Oportunidades* ou 📌 *Sugestões*, no máximo 1 bloco. Nunca no bloco de números frios.
+
 ESTRUTURA OBRIGATÓRIA (nessa ordem, em formato WhatsApp markdown):
 
 📊 *Como foi o dia* (NÚMEROS FRIOS — com energia)
