@@ -145,6 +145,43 @@ export async function collectAttendanceMetrics(
       ? Number((closedByHuman / sessionsAssumedByHuman).toFixed(2))
       : null;
 
+  // 4. Repasse automático da IA pra fila (reopen_ai_unanswered): threshold
+  //    configurado (menor entre as contas habilitadas) + reaberturas no dia.
+  //    Dados crus — a leitura "está curto demais?" fica pro relatório.
+  const { rows: queueRows } = await desenrolaPool.query<{
+    threshold_minutes: string | null;
+    reopens_today: string;
+    sessions_reopened_today: string;
+  }>(
+    `
+      SELECT
+        (
+          SELECT MIN(s.time_value * tu.multiplier_minutes)
+          FROM reopen_ai_unanswered_settings s
+          JOIN time_units tu ON tu.id = s.time_unit_id
+          WHERE s.tenant_id = $1 AND s.enabled = true
+        )                                                              AS threshold_minutes,
+        COUNT(*)::text                                                 AS reopens_today,
+        COUNT(DISTINCT service_session_id)::text                       AS sessions_reopened_today
+      FROM reopen_ai_unanswered_logs
+      WHERE tenant_id = $1
+        AND reopened_at >= ${r.start}
+        AND reopened_at <  ${r.end}
+    `,
+    [tenantId],
+  );
+  const q = queueRows[0];
+  const thresholdMinutes =
+    q?.threshold_minutes != null ? Number(q.threshold_minutes) : null;
+  const aiQueueHandoff =
+    thresholdMinutes != null
+      ? {
+          thresholdMinutes,
+          reopensToday: Number(q?.reopens_today ?? 0),
+          sessionsReopenedToday: Number(q?.sessions_reopened_today ?? 0),
+        }
+      : null;
+
   return {
     handoffToHuman: {
       handoffs: Number(h?.handoffs ?? 0),
@@ -169,6 +206,7 @@ export async function collectAttendanceMetrics(
       closedByHuman,
       closedByHumanRate,
     }),
+    aiQueueHandoff,
   };
 }
 
